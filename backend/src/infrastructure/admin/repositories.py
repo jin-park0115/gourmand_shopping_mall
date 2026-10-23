@@ -131,15 +131,19 @@ def _conditions(query: AdminOrderQuery, *, with_status: bool) -> list[ColumnElem
         like = f"%{_escape_like(query.q)}%"
         options: list[ColumnElement[bool]] = [
             OrderModel.recipient.ilike(like, escape="\\"),
-            OrderModel.phone.ilike(like, escape="\\"),
             exists().where(
                 OrderItemModel.order_id == OrderModel.order_id,
                 ProductModel.product_id == OrderItemModel.product_id,
                 ProductModel.name.ilike(like, escape="\\"),
             ),
         ]
-        # 주문번호는 정확히 일치. int4 범위를 넘는 숫자는 비교하지 않아요
-        if query.q.isdigit() and len(query.q) <= 9:
+        # 연락처는 양쪽 하이픈을 빼고 비교해요: "01033334444" · "010-3333" 둘 다 "010-3333-4444" 를 찾고,
+        # 하이픈만 있는 검색어("-")는 모든 연락처에 걸리지 않게 이 조건을 넣지 않아요
+        digits = query.q.replace("-", "")
+        if digits and any(c.isdecimal() for c in digits):
+            options.append(func.replace(OrderModel.phone, "-", "").ilike(f"%{_escape_like(digits)}%", escape="\\"))
+        # 주문번호는 정확히 일치. isdecimal 이라 '²' 같은 문자는 제외되고, int4 범위를 넘는 숫자는 비교하지 않아요
+        if query.q.isdecimal() and len(query.q) <= 9:
             options.append(OrderModel.order_id == int(query.q))
         conditions.append(or_(*options))
     conditions.extend(_day_range(query.date_from, query.date_to))
@@ -177,7 +181,8 @@ def _to_view(row: OrderModel, history: list[StatusChange] | None = None) -> Admi
                 price=item.unit_price,
                 quantity=item.quantity,
             )
-            for item in row.items
+            # relationship 에 순서가 없어서, 담긴 순서(order_item_id)로 고정해요
+            for item in sorted(row.items, key=lambda i: i.order_item_id)
         ],
         # orders 의 택배사 · 운송장 · 메모 컬럼은 SCRUM-35 리비전에서 추가돼요. 그 전에는 None
         courier=getattr(row, "courier", None),

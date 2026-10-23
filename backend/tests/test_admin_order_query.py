@@ -92,6 +92,22 @@ async def test_search_by_exact_order_id(db_session, shop) -> None:
     assert o4.order_id in _ids(page)
 
 
+async def test_phone_without_hyphens(db_session, shop) -> None:
+    o2 = shop["orders"][1]
+    page = await _service(db_session).list_orders(AdminOrderQuery(q="01033334444"))
+    assert _ids(page) == [o2.order_id]
+
+
+async def test_hyphen_only_query_does_not_match_everything(db_session, shop) -> None:
+    page = await _service(db_session).list_orders(AdminOrderQuery(q="-"))
+    assert page.total == 0
+
+
+async def test_superscript_digit_query_is_safe(db_session, shop) -> None:
+    page = await _service(db_session).list_orders(AdminOrderQuery(q="²"))
+    assert page.total == 0
+
+
 async def test_like_wildcards_are_escaped(db_session, shop) -> None:
     page = await _service(db_session).list_orders(AdminOrderQuery(q="%"))
     assert page.total == 0
