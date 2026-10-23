@@ -12,3 +12,5 @@ def setup_logging(level: int = logging.INFO) -> None:
         handler.setFormatter(logging.Formatter(LOG_FORMAT))
         logger.addHandler(handler)
     logger.setLevel(level)
+    # uvicorn 기본 접근 로그는 쿼리스트링까지 찍어서 꺼요. 요청 로그는 gourmand.request 가 남겨요
+    logging.getLogger("uvicorn.access").disabled = True

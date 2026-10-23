@@ -71,18 +71,46 @@ def test_client_error_is_logged_as_warning(client: TestClient, caplog: pytest.Lo
     assert record.levelno == logging.WARNING
 
 
-def test_secrets_are_not_logged(client: TestClient, caplog: pytest.LogCaptureFixture) -> None:
+def test_query_headers_and_body_are_not_logged(client: TestClient, caplog: pytest.LogCaptureFixture) -> None:
     with caplog.at_level(logging.INFO, logger="gourmand.request"):
         client.post(
-            "/login?token=abc123&page=2",
+            "/login?token=abc123&q=김철수 010-1234-5678",
             headers={"Authorization": "Bearer secret-jwt"},
             json={"email": "a@b.com", "password": "pw-1234"},
         )
     logged = "\n".join(r.getMessage() for r in caplog.records)
-    assert "token=***" in logged
-    assert "page=2" in logged
-    for secret in ("abc123", "secret-jwt", "pw-1234", "issued-token"):
+    assert "POST /login → 200" in logged
+    for secret in ("abc123", "김철수", "010-1234-5678", "secret-jwt", "a@b.com", "pw-1234", "issued-token"):
         assert secret not in logged
+
+
+def test_malformed_request_id_is_replaced(client: TestClient) -> None:
+    res = client.get("/ping", headers={"X-Request-ID": "x" * 65})
+    assert res.headers["X-Request-ID"] != "x" * 65
+    assert len(res.headers["X-Request-ID"]) == 12
+
+
+def test_server_error_shares_request_id(caplog: pytest.LogCaptureFixture) -> None:
+    app = _app()
+
+    @app.get("/boom")
+    async def boom():
+        raise RuntimeError("boom")
+
+    with caplog.at_level(logging.INFO):
+        res = TestClient(app, raise_server_exceptions=False).get("/boom", headers={"X-Request-ID": "req-500"})
+    assert res.status_code == 500
+    assert res.headers["X-Request-ID"] == "req-500"
+    error = next(r for r in caplog.records if r.name == "gourmand.error")
+    assert "id=req-500" in error.getMessage()
+    assert error.exc_info is not None
+
+
+def test_uvicorn_access_log_is_disabled() -> None:
+    from core.logging import setup_logging
+
+    setup_logging()
+    assert logging.getLogger("uvicorn.access").disabled
 
 
 def test_main_app_registers_middlewares() -> None:

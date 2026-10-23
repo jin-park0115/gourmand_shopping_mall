@@ -64,8 +64,8 @@ raise BusinessRuleError("배송완료된 주문은 취소할 수 없어요.")
 
 - 허용 출처는 `.env`의 `CORS_ORIGINS`(쉼표 구분, 기본 `http://localhost:3000`)로 정합니다.
 - 모든 요청은 `METHOD 경로 → 상태 처리시간ms id=요청ID` 한 줄로 기록됩니다 (4xx는 WARNING, 5xx는 ERROR).
-- 헤더 · 본문은 기록하지 않고, 쿼리의 `password`, `token` 등은 `***`로 가립니다.
-- 응답 헤더 `X-Request-ID`, `X-Process-Time-Ms`로 요청 ID와 처리 시간을 확인할 수 있습니다.
+- 쿼리스트링(검색어에 이름 · 연락처가 들어갈 수 있음) · 헤더(토큰) · 본문(비밀번호)은 기록하지 않습니다. 같은 이유로 uvicorn 기본 접근 로그는 꺼 두었습니다.
+- 응답 헤더 `X-Request-ID`, `X-Process-Time-Ms`로 요청 ID와 처리 시간을 확인할 수 있습니다. 500 오류 응답에도 `X-Request-ID`가 담겨서 이 ID로 서버 로그를 찾을 수 있습니다.
 
 ## 인수 당시 코드
 

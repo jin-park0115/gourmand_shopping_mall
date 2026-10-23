@@ -1,9 +1,10 @@
 """공통 미들웨어: CORS + 요청 로깅.
 
 요청 로그에는 메서드 · 경로 · 상태 코드 · 처리 시간 · 요청 ID만 남겨요.
-헤더(Authorization 등)와 본문은 남기지 않고, 쿼리의 비밀값(password, token 등)은 *** 로 가려요.
+쿼리스트링(검색어에 이름 · 연락처가 들어갈 수 있음), 헤더(Authorization 등), 본문(비밀번호)은 남기지 않아요.
 """
 import logging
+import re
 import time
 import uuid
 
@@ -14,20 +15,15 @@ from core.config import get_settings
 
 logger = logging.getLogger("gourmand.request")
 
-SENSITIVE_QUERY_KEYS = {"password", "token", "access_token", "refresh_token", "secret", "authorization", "code"}
-
 REQUEST_ID_HEADER = "X-Request-ID"
 PROCESS_TIME_HEADER = "X-Process-Time-Ms"
+# 프론트가 보낸 요청 ID는 이 형식일 때만 이어 써요 (로그에 아무 문자열이나 들어오지 않게)
+REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9-]{1,64}$")
 
 
-def _safe_path(request: Request) -> str:
-    if not request.query_params:
-        return request.url.path
-    query = "&".join(
-        f"{key}={'***' if key.lower() in SENSITIVE_QUERY_KEYS else value}"
-        for key, value in request.query_params.multi_items()
-    )
-    return f"{request.url.path}?{query}"
+def _request_id_of(request: Request) -> str:
+    incoming = request.headers.get(REQUEST_ID_HEADER, "")
+    return incoming if REQUEST_ID_PATTERN.fullmatch(incoming) else uuid.uuid4().hex[:12]
 
 
 def _level_of(status: int) -> int:
@@ -40,13 +36,15 @@ def _level_of(status: int) -> int:
 
 async def log_requests(request: Request, call_next) -> Response:
     # 프론트가 보낸 요청 ID가 있으면 이어 쓰고, 없으면 새로 만들어요 (오류 문의 시 로그 찾기용)
-    request_id = request.headers.get(REQUEST_ID_HEADER) or uuid.uuid4().hex[:12]
+    request_id = _request_id_of(request)
+    # 500 오류 handler도 같은 요청 ID를 로그 · 응답 헤더에 쓰도록 저장해요
+    request.state.request_id = request_id
     start = time.perf_counter()
     try:
         response = await call_next(request)
     except Exception:
         elapsed_ms = (time.perf_counter() - start) * 1000
-        logger.error("%s %s → 500 %.1fms id=%s", request.method, _safe_path(request), elapsed_ms, request_id)
+        logger.error("%s %s → 500 %.1fms id=%s", request.method, request.url.path, elapsed_ms, request_id)
         raise
     elapsed_ms = (time.perf_counter() - start) * 1000
     response.headers[REQUEST_ID_HEADER] = request_id
@@ -55,7 +53,7 @@ async def log_requests(request: Request, call_next) -> Response:
         _level_of(response.status_code),
         "%s %s → %d %.1fms id=%s",
         request.method,
-        _safe_path(request),
+        request.url.path,
         response.status_code,
         elapsed_ms,
         request_id,
