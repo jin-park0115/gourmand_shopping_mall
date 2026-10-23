@@ -1,9 +1,12 @@
-"""SCRUM-34: 관리자 주문 응답 JSON 이 docs/API.md 모양(camelCase, KST 시간)인지 검사합니다."""
+"""SCRUM-34: 관리자 주문 응답 JSON 이 docs/API.md 모양(camelCase, KST 시간)인지 검사합니다.
+
+공통 CamelModel 은 serialize_by_alias 설정이 없어서 (FastAPI 응답은 자동으로 alias 사용) 여기서는 by_alias=True 로 확인해요.
+"""
 from datetime import datetime
 
 from domain.admin.views import AdminOrderView, BuyerView, OrderLineView, OrderSummary, Page, TopProduct
 from domain.order.status import OrderStatus, received
-from presentation.admin.schemas import AdminOrderOut, AdminOrderPageOut, OrderSummaryOut
+from presentation.admin.schemas import AdminOrderOut, OrderSummaryOut, admin_order_page
 
 VIEW = AdminOrderView(
     order_id=17,
@@ -19,7 +22,7 @@ VIEW = AdminOrderView(
 
 
 def test_admin_order_json_shape() -> None:
-    data = AdminOrderOut.from_view(VIEW).model_dump(mode="json")
+    data = AdminOrderOut.from_view(VIEW).model_dump(mode="json", by_alias=True)
     assert data["orderId"] == 17
     assert data["orderedAt"] == "2026-10-23T14:05:00+09:00"
     assert data["buyer"] == {"buyerName": "김구르", "phone": "010-1234-5678", "zipcode": "06236", "address1": "서울 강남구", "address2": "4층"}
@@ -31,9 +34,14 @@ def test_admin_order_json_shape() -> None:
 
 def test_page_json_shape() -> None:
     list_view = AdminOrderView(**{**VIEW.__dict__, "history": None})
-    data = AdminOrderPageOut.from_page(Page(items=[list_view], total=41, page=2, size=20)).model_dump(mode="json")
+    data = admin_order_page(Page(items=[list_view], total=41, page=2, size=20)).model_dump(mode="json", by_alias=True)
     assert (data["total"], data["page"], data["size"], data["pages"]) == (41, 2, 20, 3)
-    assert data["items"][0]["history"] is None
+    assert data["items"][0]["orderId"] == 17 and data["items"][0]["history"] is None
+
+
+def test_empty_page_has_zero_pages() -> None:
+    data = admin_order_page(Page(items=[], total=0, page=1, size=20)).model_dump(mode="json", by_alias=True)
+    assert data == {"items": [], "total": 0, "page": 1, "size": 20, "pages": 0}
 
 
 def test_summary_json_shape() -> None:
@@ -46,7 +54,7 @@ def test_summary_json_shape() -> None:
         waiting_shipment=3,
         top_products=[TopProduct(product_id=3, name="로투스", image_url="/l.jpg", units=7)],
     )
-    data = OrderSummaryOut.from_summary(summary).model_dump(mode="json")
+    data = OrderSummaryOut.from_summary(summary).model_dump(mode="json", by_alias=True)
     assert data["statusCounts"]["접수"] == 3 and data["statusCounts"]["주문취소"] == 0
     assert data["todaySales"] == 9000 and data["waitingShipment"] == 3
     assert data["topProducts"] == [{"id": 3, "name": "로투스", "imageUrl": "/l.jpg", "units": 7}]

@@ -4,11 +4,12 @@ JSON 필드 이름은 camelCase (프론트 lib/orderStorage.ts 타입과 같게)
 """
 from datetime import datetime, timedelta, timezone
 
-from pydantic import BaseModel, ConfigDict, field_serializer
-from pydantic.alias_generators import to_camel
+from pydantic import field_serializer
 
-from domain.admin.views import AdminOrderView, OrderSummary, Page
+from domain.admin.views import AdminOrderView, OrderSummary
+from domain.admin.views import Page as ViewPage
 from domain.order.status import OrderStatus, StatusChange
+from presentation.schemas import CamelModel, Page
 
 KST = timezone(timedelta(hours=9))
 
@@ -18,11 +19,7 @@ def _kst(value: datetime) -> str:
     return (value if value.tzinfo else value.replace(tzinfo=KST)).isoformat()
 
 
-class _Out(BaseModel):
-    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True, serialize_by_alias=True)
-
-
-class BuyerOut(_Out):
+class BuyerOut(CamelModel):
     buyer_name: str
     phone: str
     zipcode: str
@@ -30,7 +27,7 @@ class BuyerOut(_Out):
     address2: str | None
 
 
-class OrderLineOut(_Out):
+class OrderLineOut(CamelModel):
     id: int
     name: str
     image_url: str
@@ -38,7 +35,7 @@ class OrderLineOut(_Out):
     quantity: int
 
 
-class HistoryOut(_Out):
+class HistoryOut(CamelModel):
     status: OrderStatus
     at: datetime
     note: str | None
@@ -52,7 +49,7 @@ class HistoryOut(_Out):
         return cls(status=change.to_status, at=change.changed_at, note=change.note)
 
 
-class AdminOrderOut(_Out):
+class AdminOrderOut(CamelModel):
     order_id: int
     status: OrderStatus
     ordered_at: datetime
@@ -95,32 +92,20 @@ class AdminOrderOut(_Out):
         )
 
 
-class AdminOrderPageOut(_Out):
-    items: list[AdminOrderOut]
-    total: int
-    page: int
-    size: int
-    pages: int
+def admin_order_page(page: ViewPage[AdminOrderView]) -> Page[AdminOrderOut]:
+    """목록 응답: 공통 Page { items, total, page, size, pages } (presentation/schemas.py)."""
+    return Page[AdminOrderOut].of(
+        items=[AdminOrderOut.from_view(v) for v in page.items], total=page.total, page=page.page, size=page.size
+    )
 
-    @classmethod
-    def from_page(cls, page: Page[AdminOrderView]) -> "AdminOrderPageOut":
-        return cls(
-            items=[AdminOrderOut.from_view(v) for v in page.items],
-            total=page.total,
-            page=page.page,
-            size=page.size,
-            pages=page.pages,
-        )
-
-
-class TopProductOut(_Out):
+class TopProductOut(CamelModel):
     id: int
     name: str
     image_url: str
     units: int
 
 
-class OrderSummaryOut(_Out):
+class OrderSummaryOut(CamelModel):
     total: int
     status_counts: dict[str, int]
     today_orders: int
