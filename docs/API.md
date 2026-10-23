@@ -270,6 +270,11 @@ Content-Type: application/json
 | POST | `/auth/login` | 로그인 (access token 발급) | 공개 | 200 | 401 · 422 | SCRUM-18 |
 | POST | `/auth/logout` | 로그아웃 (지금 토큰을 블랙리스트에) | 회원 | 204 | 401 | SCRUM-19 |
 | GET | `/auth/me` | 내 정보 (토큰이 아직 유효한지 확인용) | 회원 | 200 | 401 | SCRUM-19 |
+| GET | `/cart` | 내 장바구니 | 회원 | 200 | 401 | SCRUM-27 |
+| POST | `/cart/items` | 담기 (같은 상품이면 수량 합산) | 회원 | 200 | 401 · 404 · 409 · 422 | SCRUM-27 |
+| PATCH | `/cart/items/{productId}` | 수량 변경 | 회원 | 200 | 401 · 404 · 409 · 422 | SCRUM-27 |
+| DELETE | `/cart/items/{productId}` | 상품 빼기 | 회원 | 200 | 401 · 404 | SCRUM-27 |
+| DELETE | `/cart` | 전체 비우기 | 회원 | 200 | 401 | SCRUM-27 |
 
 ### POST /auth/signup
 
@@ -333,6 +338,36 @@ async def change_status(order_id: int, admin: CurrentUser = Depends(require_admi
 ```
 
 Swagger(`/docs`) 오른쪽 위 `Authorize` 에 이메일 · 비밀번호를 넣으면 로그인된 상태로 시험할 수 있어요.
+
+### 장바구니 (SCRUM-27)
+
+모두 로그인한 **본인** 장바구니만 다뤄요 (경로에 회원 번호가 없어요). 조회뿐 아니라 담기 · 변경 · 삭제도 **바뀐 뒤 장바구니 전체**를 돌려줘서, 프론트는 응답으로 바로 화면을 갱신하면 돼요.
+
+```json
+{
+  "items": [
+    { "id": 6, "name": "로투스 비스코프", "imageUrl": "/images/6.png", "price": 3900,
+      "quantity": 2, "stock": 5, "isSoldOut": false, "subtotal": 7800 }
+  ],
+  "totalCount": 2,
+  "totalPrice": 7800
+}
+```
+
+| 필드 | 설명 |
+| --- | --- |
+| `id` | 상품 번호 (프론트 `CartItem.id` 와 같아요) |
+| `price` | **지금** 판매가 (할인가가 있으면 할인가). 담은 시점 가격을 따로 저장하지 않아요 |
+| `isSoldOut` | 담아 둔 사이 품절되면 `true` → 주문 전에 빼도록 안내 |
+| 순서 | 먼저 담은 상품이 위 |
+
+요청 본문: `POST /cart/items` 는 `{ "productId": 6, "quantity": 2 }` (`quantity` 생략하면 1), `PATCH` 는 `{ "quantity": 3 }`.
+
+| 오류 | code | 예 |
+| --- | --- | --- |
+| 404 | `NOT_FOUND` | "상품을 찾을 수 없어요.", "장바구니에 없는 상품이에요." |
+| 409 | `BUSINESS_RULE_VIOLATION` | "'로투스' 상품이 품절이에요.", "'로투스' 재고가 부족해요. (최대 5개까지 담을 수 있어요)" — 합친 수량이 재고를 넘어도 409, 장바구니는 그대로 |
+| 422 | `VALIDATION_ERROR` | 수량 0 이하 · 999 초과 |
 
 ## C 관리자 주문 (안중섭)
 
