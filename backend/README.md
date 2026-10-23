@@ -83,3 +83,16 @@ uv run alembic downgrade -1                         # 한 단계 되돌리기
 - 새 `models.py` 는 `src/infrastructure/models.py` 에 import 한 줄을 추가해야 autogenerate 가 인식합니다.
 - `alembic.ini` 에는 한글을 넣지 마세요 (Windows 에서 cp949 로 읽어 실패).
 - 예전에 lifespan `create_all` 로 테이블을 만든 DB는 스키마가 같으면 `uv run alembic stamp head` 한 번이면 됩니다.
+
+## 시드 데이터 (SCRUM-15)
+
+```bash
+uv run alembic upgrade head      # 테이블 먼저
+uv run python scripts/seed.py    # 나라 6 · 카테고리 6 · 상품 60 · 관리자/고객 계정
+```
+
+- 상품은 `seed/products.json`(60개)을 그대로 넣고, `product_id` 는 프론트 상품 번호와 같아요.
+- 카테고리는 프론트 `gourmand/lib/categories.ts` 의 6개 분류(스낵·칩, 쿠키·비스킷, 케이크·베이커리, 초콜릿, 젤리·캔디, 육포·견과·별미)예요.
+- 계정은 `.env` 의 `ADMIN_EMAIL` · `ADMIN_PASSWORD` · `CUSTOMER_EMAIL` · `CUSTOMER_PASSWORD` 로 만들어요. 비밀번호가 비어 있으면 그 계정은 건너뛰어요. 비밀번호는 argon2 해시로만 저장돼요.
+- 여러 번 실행해도 중복이 생기지 않아요 (이름 · 상품 번호 · 이메일 기준으로 덮어쓰기).
+- `category.slug` · `country.slug` 컬럼(SCRUM-21)이 생기면 `src/infrastructure/seed.py` 의 TODO 위치에서 slug 도 넣어요.
