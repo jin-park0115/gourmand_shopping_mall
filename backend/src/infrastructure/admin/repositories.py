@@ -1,7 +1,7 @@
 """관리자 주문 운영 Repository: ORM 모델 ↔ 도메인 객체 변환, 비동기 조회·저장."""
 from datetime import date, datetime, time, timedelta
 
-from sqlalchemy import ColumnElement, exists, func, or_, select, update
+from sqlalchemy import ColumnElement, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -131,17 +131,15 @@ class AdminOrderCommandRepository:
             select(OrderModel).where(OrderModel.order_id == order_id).with_for_update().execution_options(populate_existing=True)
         )
 
-    async def restore_stock(self, order_id: int) -> None:
-        # TODO(SCRUM-21): 박진 님 ProductRepository.increase_stock 이 생기면 그 함수로 교체
-        lines = await self.session.execute(
-            select(OrderItemModel.product_id, OrderItemModel.quantity).where(OrderItemModel.order_id == order_id)
+    async def quantities_by_product(self, order_id: int) -> list[tuple[int, int]]:
+        """주문 상품별 수량 합계 (product_id 오름차순). 재고를 늘 같은 순서로 잠가서 데드락을 피해요."""
+        rows = await self.session.execute(
+            select(OrderItemModel.product_id, func.sum(OrderItemModel.quantity))
+            .where(OrderItemModel.order_id == order_id)
+            .group_by(OrderItemModel.product_id)
+            .order_by(OrderItemModel.product_id)
         )
-        for product_id, quantity in lines.all():
-            await self.session.execute(
-                update(ProductModel)
-                .where(ProductModel.product_id == product_id)
-                .values(stock=ProductModel.stock + quantity)
-            )
+        return [(product_id, int(quantity)) for product_id, quantity in rows.all()]
 
 
 def _with_lines(stmt):

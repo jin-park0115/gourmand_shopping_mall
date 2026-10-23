@@ -1,7 +1,7 @@
 """orders shipping columns for admin order operations (SCRUM-35, needs B review)
 
 Revision ID: d7e2b9a4c1f6
-Revises: c3a1f0e2b7d4
+Revises: 931e63404b05
 Create Date: 2026-10-23 15:40:00.000000
 
 """
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = 'd7e2b9a4c1f6'
-down_revision: Union[str, Sequence[str], None] = 'c3a1f0e2b7d4'
+down_revision: Union[str, Sequence[str], None] = '931e63404b05'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

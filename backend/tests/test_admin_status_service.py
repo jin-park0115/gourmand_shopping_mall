@@ -76,6 +76,15 @@ async def test_cancel_restores_stock(db_session, ctx) -> None:
     assert await _stock(db_session, ctx["pocky_id"]) == 8
 
 
+async def test_cancel_restores_stock_when_same_product_is_in_several_lines(db_session, ctx) -> None:
+    customer = await make_member(db_session, email="c2@test.com", role="customer")
+    lotus = await db_session.get(ProductModel, ctx["lotus_id"])
+    order = await make_order(db_session, customer, [(lotus, 1), (lotus, 4)], status="접수")
+    await db_session.commit()
+    await ctx["service"].change_status(order.order_id, "주문취소", admin_id=ctx["admin_id"], note="중복 주문")
+    assert await _stock(db_session, ctx["lotus_id"]) == 15  # 10 + 1 + 4
+
+
 async def test_second_cancel_is_rejected_and_stock_restored_once(db_session, ctx) -> None:
     svc = ctx["service"]
     await svc.change_status(ctx["order_id"], "주문취소", admin_id=ctx["admin_id"], note="품절")

@@ -11,6 +11,7 @@ from infrastructure.admin.repositories import (
     AdminOrderQueryRepository,
     OrderStatusHistoryRepository,
 )
+from infrastructure.product.repositories import ProductRepository
 
 KST = timezone(timedelta(hours=9))
 
@@ -52,6 +53,7 @@ class AdminOrderStatusService:
         self.commands = AdminOrderCommandRepository(session)
         self.history = OrderStatusHistoryRepository(session)
         self.queries = AdminOrderQueryRepository(session)
+        self.products = ProductRepository(session)
         self._now = now
 
     async def change_status(
@@ -91,7 +93,7 @@ class AdminOrderStatusService:
 
             # 5. 취소면 재고 복구
             if change.restores_stock:
-                await self.commands.restore_stock(order_id)
+                await self._restore_stock(order_id)
                 # TODO(윤강 님과 합의): 취소 시 payment.status 를 어떤 값으로 바꿀지 정해지면 여기서 함께 변경
 
             await self.session.commit()
@@ -102,3 +104,12 @@ class AdminOrderStatusService:
         view = await self.queries.get(order_id)
         assert view is not None
         return view
+
+    async def _restore_stock(self, order_id: int) -> None:
+        # 상품 행을 product_id 순서로 잠그고(SELECT … FOR UPDATE) 도메인 규칙으로 재고를 늘려요 (SCRUM-21 ProductRepository)
+        for product_id, quantity in await self.commands.quantities_by_product(order_id):
+            product = await self.products.get_for_update(product_id)
+            if product is None:
+                raise NotFoundError(f"상품을 찾을 수 없어요. (상품 번호 {product_id})")
+            product.increase_stock(quantity)
+            await self.products.save_stock(product)
