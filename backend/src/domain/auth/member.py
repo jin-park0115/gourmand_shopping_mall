@@ -34,6 +34,19 @@ class Member:
 
 
 @dataclass(frozen=True)
+class CurrentUser:
+    """요청한 로그인 사용자 (get_current_user · require_admin 이 돌려줘요). role 은 토큰이 아니라 DB 의 현재 값이에요."""
+
+    member_id: int
+    email: str
+    role: MemberRole
+
+    @property
+    def is_admin(self) -> bool:
+        return self.role is MemberRole.ADMIN
+
+
+@dataclass(frozen=True)
 class TokenClaims:
     """access token 에 담긴 값 (sub · role · jti · exp). SCRUM-19 로그아웃 · 권한 확인에서 써요."""
 

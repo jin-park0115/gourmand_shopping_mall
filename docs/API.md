@@ -268,6 +268,8 @@ Content-Type: application/json
 | --- | --- | --- | --- | --- | --- | --- |
 | POST | `/auth/signup` | 회원가입 | 공개 | 201 | 409 · 422 | SCRUM-18 |
 | POST | `/auth/login` | 로그인 (access token 발급) | 공개 | 200 | 401 · 422 | SCRUM-18 |
+| POST | `/auth/logout` | 로그아웃 (지금 토큰을 블랙리스트에) | 회원 | 204 | 401 | SCRUM-19 |
+| GET | `/auth/me` | 내 정보 (토큰이 아직 유효한지 확인용) | 회원 | 200 | 401 | SCRUM-19 |
 
 ### POST /auth/signup
 
@@ -305,6 +307,32 @@ username=kim@gourmand.com&password=secret-123
 
 토큰(JWT HS256)에는 `sub`(member_id, 문자열) · `role` · `jti`(토큰 id, 로그아웃 블랙리스트용) · `exp` · `iat` 가 들어 있어요.
 이메일이 없을 때와 비밀번호가 틀렸을 때 모두 같은 401 "이메일 또는 비밀번호가 올바르지 않아요." 예요 (가입 여부가 드러나지 않게).
+
+### POST /auth/logout · GET /auth/me
+
+`Authorization: Bearer <access_token>` 을 보내요. 로그아웃하면 그 토큰의 `jti` 를 만료 시각까지 `token_blacklist` 에 넣어서, 같은 토큰으로 다시 요청하면 401 "로그아웃된 토큰이에요. 다시 로그인해 주세요." 예요. 다른 기기에서 받은 토큰은 그대로 쓸 수 있어요.
+`GET /auth/me` 응답은 회원가입 응답과 같은 `{ id, email, name, phone, role }` 이에요.
+
+### 로그인 · 권한 의존성 (다른 기능에서 쓰는 법)
+
+`presentation/auth/dependencies.py` 에서 import 해서 `Depends` 로 써요. 모두 `CurrentUser(member_id, email, role)` 를 돌려줘요. `role` 은 토큰이 아니라 **DB 의 현재 값**이라, 관리자 권한을 바꾸면 다시 로그인하지 않아도 바로 반영돼요.
+
+| 의존성 | 쓰는 곳 | 토큰 없음 · 만료 · 위조 · 로그아웃 | 고객 계정 |
+| --- | --- | --- | --- |
+| `get_current_user` | 회원 API (장바구니 · 주문 · 리뷰 작성) | 401 | 통과 |
+| `require_admin` | 관리자 API | 401 | 403 "관리자만 사용할 수 있어요." |
+| `get_optional_user` | 공개 API 인데 로그인 여부로 값이 달라질 때 (리뷰 `isMine`) | `None` (오류 없음) | 통과 |
+
+```python
+from presentation.auth.dependencies import get_current_user, require_admin
+from domain.auth.member import CurrentUser
+
+@router.patch("/admin/orders/{order_id}/status")
+async def change_status(order_id: int, admin: CurrentUser = Depends(require_admin), ...):
+    ...  # admin.member_id 를 이력의 changed_by 로
+```
+
+Swagger(`/docs`) 오른쪽 위 `Authorize` 에 이메일 · 비밀번호를 넣으면 로그인된 상태로 시험할 수 있어요.
 
 ## C 관리자 주문 (안중섭)
 
@@ -473,7 +501,7 @@ Content-Type: application/json
 
 | 항목 | 누구와 | 내용 | 상태 |
 | --- | --- | --- | --- |
-| `require_admin` | 윤강 (SCRUM-19) | 위치 `presentation/auth/dependencies.py`. 통과하면 `CurrentUser(member_id, email, role)`를 돌려줘요. 토큰 없음 · 만료 · 로그아웃된 토큰은 401, 로그인했지만 `role`이 `admin`이 아니면 403 | 합의됨 (구현은 SCRUM-19) |
+| `require_admin` | 윤강 (SCRUM-19) | 위치 `presentation/auth/dependencies.py`. 통과하면 `CurrentUser(member_id, email, role)`를 돌려줘요. 토큰 없음 · 만료 · 로그아웃된 토큰은 401, 로그인했지만 `role`이 `admin`이 아니면 403 | 구현됨 (SCRUM-19) |
 | `orders` 컬럼 추가 | 윤강 (SCRUM-29) | `courier` · `tracking_no` · `admin_note` · `updated_at` + `(status, ordered_at)` 인덱스 | 합의됨 |
 | 주문 생성 때 이력 첫 줄 | 윤강 (SCRUM-29) | 주문을 만들 때 `order_status_history`에 `접수` 한 줄(`received()`)을 같이 넣어요 | 합의됨 (SCRUM-29에서 윤강) |
 | 취소 때 결제 상태 | 윤강 | 관리자 취소 때 `payment.status`를 `결제취소`로 (값: 결제완료 · 결제취소) | 합의됨 |
