@@ -17,7 +17,7 @@ async def make_member(session: AsyncSession, *, email: str = "admin@test.com", r
 
 async def make_product(session: AsyncSession, *, name: str = "로투스 비스코프", price: int = 4500, stock: int = 10) -> ProductModel:
     country = CountryModel(name=f"나라-{name}")
-    category = CategoryModel(name=f"분류-{name}")
+    category = CategoryModel(name=f"분류-{name}", slug=f"cat-{name}")
     product = ProductModel(
         country=country,
         category=category,
