@@ -49,6 +49,10 @@ async def test_seed_creates_everything(db_session) -> None:
     assert jagarico.name == "쟈가리코 샐러드맛" and jagarico.price == 3200 and jagarico.discount_price is None
     assert (await db_session.get(CategoryModel, jagarico.category_id)).name == "스낵·칩"
     assert (await db_session.get(CountryModel, jagarico.country_id)).name == "일본"
+    assert dict((await db_session.execute(select(CategoryModel.name, CategoryModel.slug))).all())["스낵·칩"] == "snack"
+    country_slugs = dict((await db_session.execute(select(CountryModel.name, CountryModel.slug))).all())
+    assert country_slugs["일본"] == "japan"
+    assert all(slug is None for name, slug in country_slugs.items() if name not in ("일본", "대만", "중국", "베트남"))
     konjac = await db_session.get(ProductModel, 3)
     assert konjac.discount_price == 3900
 

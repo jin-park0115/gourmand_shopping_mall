@@ -31,11 +31,8 @@ CATEGORIES: list[tuple[str, str, list[int]]] = [
     ("savory", "육포·견과·별미", [17, 19, 21, 22, 24, 38]),
 ]
 
-# docs/API.md 합의 2: 주요 4개국만 slug, 나머지는 other
+# docs/API.md 합의 2: 주요 4개국만 slug, 나머지는 NULL (API 에서 "other", domain/product/product.py)
 COUNTRY_SLUGS: dict[str, str] = {"일본": "japan", "대만": "taiwan", "중국": "china", "베트남": "vietnam"}
-OTHER_COUNTRY_SLUG = "other"
-# TODO(SCRUM-21): 박진 님 리비전으로 category.slug · country.slug 컬럼이 생기면
-#   _upsert_names() 에서 slug 도 함께 넣어 주세요 (값은 위 CATEGORIES · COUNTRY_SLUGS).
 
 
 @dataclass(frozen=True)
@@ -58,8 +55,15 @@ async def run_seed(session: AsyncSession, settings: Settings, products: list[dic
     if missing:
         raise ValueError(f"카테고리가 정해지지 않은 상품 번호가 있어요: {missing} (CATEGORIES 에 추가해 주세요)")
 
-    country_ids = await _upsert_names(session, CountryModel, CountryModel.country_id, sorted({p["country"] for p in products}))
-    category_ids = await _upsert_names(session, CategoryModel, CategoryModel.category_id, [name for _, name, _ in CATEGORIES])
+    country_ids = await _upsert_names(
+        session,
+        CountryModel,
+        CountryModel.country_id,
+        [{"name": name, "slug": COUNTRY_SLUGS.get(name)} for name in sorted({p["country"] for p in products})],
+    )
+    category_ids = await _upsert_names(
+        session, CategoryModel, CategoryModel.category_id, [{"name": name, "slug": slug} for slug, name, _ in CATEGORIES]
+    )
 
     rows = [
         {
@@ -124,7 +128,10 @@ async def run_seed(session: AsyncSession, settings: Settings, products: list[dic
     )
 
 
-async def _upsert_names(session: AsyncSession, model, id_column, names: list[str]) -> dict[str, int]:
-    await session.execute(insert(model).values([{"name": n} for n in names]).on_conflict_do_nothing(index_elements=[model.name]))
+async def _upsert_names(session: AsyncSession, model, id_column, values: list[dict]) -> dict[str, int]:
+    """이름(UNIQUE)으로 upsert 하고 slug 는 늘 최신 값으로 맞춰요. {이름: id} 를 돌려줘요."""
+    stmt = insert(model).values(values)
+    await session.execute(stmt.on_conflict_do_update(index_elements=[model.name], set_={"slug": stmt.excluded.slug}))
+    names = [v["name"] for v in values]
     rows = await session.execute(select(model.name, id_column).where(model.name.in_(names)))
     return dict(rows.all())

@@ -10,6 +10,8 @@ class CountryModel(Base):
 
     country_id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(50), unique=True)
+    # 주요 4개국만 slug 가 있어요 (japan · taiwan · china · vietnam). 없으면 API 에서 "other"
+    slug: Mapped[str | None] = mapped_column(String(30), unique=True)
 
     products: Mapped[list["ProductModel"]] = relationship(back_populates="country")
 
@@ -19,6 +21,7 @@ class CategoryModel(Base):
 
     category_id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(50), unique=True)
+    slug: Mapped[str] = mapped_column(String(30), unique=True)  # 프론트 주소 /category/{slug}
 
     products: Mapped[list["ProductModel"]] = relationship(back_populates="category")
 
