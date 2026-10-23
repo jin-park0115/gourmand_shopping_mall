@@ -4,6 +4,37 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { usePathname } from "next/navigation";
 import CartBadge from "@/components/CartBadge";
+import { useAuth } from "@/components/AuthProvider";
+import { loginHref } from "@/lib/api";
+
+// 로그인 · 로그아웃 (토큰 확인 전에는 아무것도 안 보여서 깜빡이지 않아요)
+// 지금 주소(usePathname)를 읽어서 Suspense 안에 둬요 (Next 16 cacheComponents 규칙)
+function AuthMenu(props: { className: string }) {
+  return (
+    <Suspense fallback={null}>
+      <AuthMenuInner {...props} />
+    </Suspense>
+  );
+}
+
+function AuthMenuInner({ className }: { className: string }) {
+  const { member, ready, logout } = useAuth();
+  const pathname = usePathname();
+  if (!ready) return null;
+
+  if (!member) {
+    return (
+      <Link href={loginHref(pathname)} className={className}>
+        로그인
+      </Link>
+    );
+  }
+  return (
+    <button type="button" onClick={logout} className={className} title={`${member.name}님 로그아웃`}>
+      로그아웃
+    </button>
+  );
+}
 
 const countries = [
   { name: "일본", slug: "japan" },
@@ -149,11 +180,13 @@ export default function Header() {
             />
             <span>마이페이지</span>
           </Link>
+
+          <AuthMenu className="rounded-full border border-gray-200 px-3.5 py-1.5 text-[13px] font-semibold text-gray-700 transition hover:border-brand-line hover:text-brand" />
         </div>
       </div>
 
-      {/* 모바일 헤더: 가운데 로고만 (메뉴·검색·장바구니는 하단 탭에서) */}
-      <div className="flex h-14 items-center justify-center px-3 lg:hidden">
+      {/* 모바일 헤더: 가운데 로고 + 오른쪽 로그인/로그아웃 (메뉴·검색·장바구니는 하단 탭에서) */}
+      <div className="relative flex h-14 items-center justify-center px-3 lg:hidden">
         <Link href="/">
           <img
             src="/images/common/logo.png"
@@ -161,6 +194,7 @@ export default function Header() {
             className="h-10 w-auto"
           />
         </Link>
+        <AuthMenu className="absolute right-3 top-1/2 -translate-y-1/2 text-[13px] font-semibold text-gray-600" />
       </div>
     </header>
   );
