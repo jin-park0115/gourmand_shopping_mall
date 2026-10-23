@@ -44,7 +44,7 @@ TRACKING_NO_PATTERN = re.compile(r"^[0-9-]{8,20}$")
 class StatusChange:
     """상태가 한 번 바뀐 기록. order_status_history 한 줄에 해당해요."""
 
-    from_status: OrderStatus
+    from_status: OrderStatus | None  # 주문이 처음 만들어질 때(접수)는 None
     to_status: OrderStatus
     changed_at: datetime
     note: str | None = None
@@ -98,6 +98,11 @@ def change_by_admin(
         courier=shipping[0] if shipping else None,
         tracking_no=shipping[1] if shipping else None,
     )
+
+
+def received(*, changed_at: datetime) -> StatusChange:
+    """주문이 처음 만들어질 때의 이력 첫 줄 (없음 → 접수). 주문 생성(B)에서 같이 저장해요."""
+    return StatusChange(from_status=None, to_status=OrderStatus.RECEIVED, changed_at=changed_at)
 
 
 def cancel_by_customer(current: OrderStatus, *, changed_at: datetime) -> StatusChange:
