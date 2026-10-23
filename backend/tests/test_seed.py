@@ -1,6 +1,7 @@
 """SCRUM-15: 시드 데이터 (테스트 DB, 테스트마다 rollback)."""
 import pytest
 from pwdlib import PasswordHash
+from pydantic import EmailStr, TypeAdapter
 from sqlalchemy import func, select
 
 from core.config import Settings
@@ -21,6 +22,13 @@ SETTINGS = Settings(
 
 async def _count(session, model) -> int:
     return await session.scalar(select(func.count()).select_from(model))
+
+
+def test_default_seed_emails_pass_email_validation() -> None:
+    # 로그인 · 회원 스키마가 EmailStr 을 쓰면 .local 같은 특수 도메인은 거부돼요
+    defaults = Settings(_env_file=None)
+    for email in (defaults.admin_email, defaults.customer_email):
+        TypeAdapter(EmailStr).validate_python(email)
 
 
 def test_every_product_has_a_category() -> None:

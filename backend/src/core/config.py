@@ -16,9 +16,9 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60
 
     # 시드 계정 (SCRUM-15). 비밀번호가 비어 있으면 그 계정은 만들지 않아요
-    admin_email: str = "admin@gourmand.local"
+    admin_email: str = "admin@gourmand.com"
     admin_password: str | None = None
-    customer_email: str = "customer@gourmand.local"
+    customer_email: str = "customer@gourmand.com"
     customer_password: str | None = None
 
     @property
