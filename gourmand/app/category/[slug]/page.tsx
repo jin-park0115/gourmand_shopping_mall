@@ -3,8 +3,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { CATEGORIES, getCategory, productsIn } from "@/lib/categories";
-import { COUNTRY_FILTERS, countrySlugOf, findProducts } from "@/lib/products";
+import { getCategory } from "@/lib/categories";
+import { COUNTRY_FILTERS, fetchProducts } from "@/lib/products";
 
 import CategoryTabs from "@/components/CategoryTabs";
 import ProductCard from "@/components/ProductCard";
@@ -14,11 +14,6 @@ type CategoryPageProps = {
   params: Promise<{ slug: string }>;
   searchParams: Promise<{ country?: string; sort?: string }>;
 };
-
-// 카테고리 6개의 주소를 미리 만들어 둠
-export function generateStaticParams() {
-  return CATEGORIES.map((c) => ({ slug: c.slug }));
-}
 
 export async function generateMetadata({ params }: Pick<CategoryPageProps, "params">): Promise<Metadata> {
   const { slug } = await params;
@@ -33,8 +28,9 @@ async function CategoryContent({ params, searchParams }: CategoryPageProps) {
   const category = getCategory(slug);
   if (!category) notFound();
 
-  const all = productsIn(category);
-  const list = findProducts({ category: slug, country, sort });
+  // 카테고리 상품을 한 번 받아서(정렬은 서버) 나라 칩 개수 · 나라 필터는 여기서 계산해요
+  const all = (await fetchProducts({ category: slug, sort })).items;
+  const list = country ? all.filter((p) => p.countrySlug === country) : all;
   const base = `/category/${slug}`;
 
   // 나라 필터 칩 (상품이 있는 나라만)
@@ -43,7 +39,7 @@ async function CategoryContent({ params, searchParams }: CategoryPageProps) {
     ...COUNTRY_FILTERS.map((c) => ({
       slug: c.slug,
       name: c.name,
-      count: all.filter((p) => countrySlugOf(p) === c.slug).length,
+      count: all.filter((p) => p.countrySlug === c.slug).length,
     })).filter((c) => c.count > 0),
   ];
   const chipHref = (c?: string) => {
@@ -55,7 +51,8 @@ async function CategoryContent({ params, searchParams }: CategoryPageProps) {
   };
 
   // 소개 영역에 겹쳐 놓을 대표 상품 사진 3장 (품절 제외)
-  const heroImages = all.filter((p) => !p.isSoldOut && p.stock > 0).slice(0, 3);
+  // (정렬을 바꿔도 사진이 바뀌지 않게 상품 번호 순)
+  const heroImages = [...all].sort((a, b) => a.id - b.id).filter((p) => !p.isSoldOut && p.stock > 0).slice(0, 3);
 
   return (
     <>

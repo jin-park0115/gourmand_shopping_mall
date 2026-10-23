@@ -1,19 +1,20 @@
 import Link from "next/link";
 
-import { findProducts, ProductQuery, POPULAR_KEYWORDS } from "@/lib/products";
+import { fetchProducts, ProductQuery, POPULAR_KEYWORDS } from "@/lib/products";
 
 import ProductCard from "@/components/ProductCard";
 import ProductFilters, { SortLinks } from "@/components/ProductFilters";
 
 // 검색 결과 + 필터 + 정렬 (/products, /search 공통)
-export default function ProductResults({
+// 서버에서 검색해요 (Suspense 안에서 써 주세요)
+export default async function ProductResults({
   base,
   query,
 }: {
   base: string;
   query: ProductQuery;
 }) {
-  const results = findProducts(query);
+  const results = (await fetchProducts(query)).items;
   const hasFilter = !!(query.country || query.category);
 
   return (

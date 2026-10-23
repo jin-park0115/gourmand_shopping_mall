@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useCart } from "@/components/CartProvider";
 import { Product } from "@/types/product";
+import { isSoldOut, salePrice } from "@/lib/products";
 
 // 장바구니 아이콘
 function CartIcon() {
@@ -47,11 +48,8 @@ export default function AddToCartButton({ p }: { p: Product }) {
   const { addItem } = useCart();
   const [added, setAdded] = useState(false);
 
-  const soldOut = p.isSoldOut || p.stock === 0;
-  const price =
-    p.discountPrice !== undefined && p.discountPrice < p.price
-      ? p.discountPrice
-      : p.price;
+  const soldOut = isSoldOut(p);
+  const price = salePrice(p);
 
   // 품절이면 버튼을 보여주지 않음 (이미지 위 '품절' 표시로 충분)
   if (soldOut) return null;
