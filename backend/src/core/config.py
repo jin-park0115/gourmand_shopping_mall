@@ -15,6 +15,12 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
 
+    # 시드 계정 (SCRUM-15). 비밀번호가 비어 있으면 그 계정은 만들지 않아요
+    admin_email: str = "admin@gourmand.local"
+    admin_password: str | None = None
+    customer_email: str = "customer@gourmand.local"
+    customer_password: str | None = None
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
