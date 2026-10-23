@@ -1,7 +1,7 @@
 """회원·인증 ORM 모델."""
 from datetime import datetime
 
-from sqlalchemy import Boolean, ForeignKey, String, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
@@ -37,3 +37,12 @@ class AddressModel(Base):
     is_default: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
     member: Mapped[MemberModel] = relationship(back_populates="addresses")
+
+
+class TokenBlacklistModel(Base):
+    """로그아웃한 access token 의 jti (SCRUM-19). 만료된 줄은 다음 로그아웃 때 지워요."""
+
+    __tablename__ = "token_blacklist"
+
+    jti: Mapped[str] = mapped_column(String(64), primary_key=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
