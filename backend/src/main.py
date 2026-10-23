@@ -2,7 +2,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from database import engine
+from database import Base, engine
+from infrastructure import models as _models  # noqa: F401  (모든 ORM 모델을 Base.metadata 에 등록)
 from presentation.admin.router import router as admin_router
 from presentation.auth.router import router as auth_router
 from presentation.cart.router import router as cart_router
@@ -15,7 +16,9 @@ from presentation.review.router import router as review_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # TODO(SCRUM-14): 시작 시 테이블 생성·시드 확인
+    # 시작 시 테이블 생성 (이미 있는 테이블은 건드리지 않음). 시드는 별도 스크립트(SCRUM-15).
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
     yield
     await engine.dispose()
 
