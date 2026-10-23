@@ -78,8 +78,12 @@ async def http_error_handler(request: Request, exc: StarletteHTTPException) -> J
 
 async def unhandled_error_handler(request: Request, exc: Exception) -> JSONResponse:
     # 예상하지 못한 오류는 서버 로그에만 자세히 남기고, 응답에는 내부 정보를 싣지 않아요
-    logger.exception("처리되지 않은 오류: %s %s", request.method, request.url.path)
-    return _error(500, "INTERNAL_SERVER_ERROR", "서버에서 오류가 발생했어요. 잠시 후 다시 시도해 주세요.")
+    # 요청 ID를 응답 헤더로 돌려줘서, 사용자가 알려준 ID로 로그를 찾을 수 있게 해요
+    request_id = getattr(request.state, "request_id", "-")
+    logger.exception("처리되지 않은 오류: %s %s id=%s", request.method, request.url.path, request_id)
+    response = _error(500, "INTERNAL_SERVER_ERROR", "서버에서 오류가 발생했어요. 잠시 후 다시 시도해 주세요.")
+    response.headers["X-Request-ID"] = request_id
+    return response
 
 
 def register_exception_handlers(app: FastAPI) -> None:
