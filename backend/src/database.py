@@ -1,6 +1,6 @@
 """공통 비동기 DB 설정 (SQLAlchemy 2.x + asyncpg).
 
-TODO(SCRUM-14): lifespan 테이블 생성·시드 연결, /health/db 검증 보완
+테이블 생성은 main.py 의 lifespan 에서 Base.metadata.create_all 로 수행합니다.
 """
 from collections.abc import AsyncIterator
 
