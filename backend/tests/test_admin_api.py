@@ -7,10 +7,11 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 
 from database import get_session
+from domain.auth.member import CurrentUser, MemberRole
 from infrastructure.admin.models import OrderStatusHistoryModel
 from infrastructure.product.models import ProductModel
 from main import app
-from presentation.auth.dependencies import CurrentUser, get_current_user
+from presentation.auth.dependencies import get_current_user
 from tests.factories import make_member, make_order, make_product
 
 pytestmark = pytest.mark.anyio
@@ -31,8 +32,8 @@ async def ctx(db_session):
 
     app.dependency_overrides[get_session] = _session
     yield {
-        "admin": CurrentUser(member_id=admin.member_id, email=admin.email, role="admin"),
-        "customer": CurrentUser(member_id=customer.member_id, email=customer.email, role="customer"),
+        "admin": CurrentUser(member_id=admin.member_id, email=admin.email, role=MemberRole.ADMIN),
+        "customer": CurrentUser(member_id=customer.member_id, email=customer.email, role=MemberRole.CUSTOMER),
         "received": received.order_id,
         "preparing": preparing.order_id,
         "lotus": lotus.product_id,

@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from application.admin.service import AdminOrderQueryService, AdminOrderStatusService
 from database import get_session
 from domain.admin.views import AdminOrderQuery
+from domain.auth.member import CurrentUser
 from domain.order.status import OrderStatus
 from presentation.admin.schemas import (
     AdminOrderOut,
@@ -14,7 +15,7 @@ from presentation.admin.schemas import (
     StatusChangeIn,
     admin_order_page,
 )
-from presentation.auth.dependencies import CurrentUser, require_admin
+from presentation.auth.dependencies import require_admin
 from presentation.schemas import Page
 
 # 모든 엔드포인트가 관리자 전용이에요 (토큰 없음 · 로그아웃 401, 고객 403)
