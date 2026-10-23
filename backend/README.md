@@ -39,6 +39,27 @@ src/
 
 `tests/test_architecture.py` 가 위 규칙을 자동으로 검사합니다.
 
+## 오류 응답 형식
+
+모든 오류는 `{"code": "...", "message": "..."}` 형식으로 응답합니다. 업무 규칙 위반은 `domain/exceptions.py`의 예외를 raise 하면 `presentation/exception_handlers.py`가 상태 코드로 바꿔 줍니다.
+
+| 예외 | 상태 | code |
+| --- | --- | --- |
+| `InvalidValueError` | 422 | `INVALID_VALUE` |
+| `BusinessRuleError` | 409 | `BUSINESS_RULE_VIOLATION` |
+| `ConflictError` | 409 | `CONFLICT` |
+| `NotFoundError` | 404 | `NOT_FOUND` |
+| `AuthenticationError` | 401 | `UNAUTHORIZED` (`WWW-Authenticate: Bearer` 헤더 포함) |
+| `PermissionDeniedError` | 403 | `FORBIDDEN` |
+| 요청 검증 실패 (Pydantic) | 422 | `VALIDATION_ERROR` (+ `errors`) |
+| 예상하지 못한 오류 | 500 | `INTERNAL_SERVER_ERROR` (내부 정보는 로그에만) |
+
+```python
+from domain.exceptions import BusinessRuleError
+
+raise BusinessRuleError("배송완료된 주문은 취소할 수 없어요.")
+```
+
 ## 인수 당시 코드
 
 `legacy/` 폴더 참고 (기준 커밋 `9d162f6`).

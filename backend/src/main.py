@@ -6,6 +6,7 @@ from database import engine
 from presentation.admin.router import router as admin_router
 from presentation.auth.router import router as auth_router
 from presentation.cart.router import router as cart_router
+from presentation.exception_handlers import register_exception_handlers
 from presentation.health.router import router as health_router
 from presentation.order.router import router as order_router
 from presentation.product.router import router as product_router
@@ -22,7 +23,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Gourmand API", version="0.1.0", lifespan=lifespan)
 
 # TODO(SCRUM-17): CORS·요청 로깅 미들웨어
-# TODO(SCRUM-16): 도메인 예외 → HTTP 응답 exception handler
+register_exception_handlers(app)
 
 for r in (health_router, auth_router, product_router, review_router, cart_router, order_router, admin_router):
     app.include_router(r)
