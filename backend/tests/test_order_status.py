@@ -29,8 +29,13 @@ ALLOWED = [
 NOT_ALLOWED = [(a, b) for a, b in product(S, S) if a is not b and (a, b) not in ALLOWED]
 
 
-def _shipping_info(target: OrderStatus) -> dict:
-    return {"courier": "CJ대한통운", "tracking_no": "1234567890"} if target is S.SHIPPING else {}
+def _required(target: OrderStatus) -> dict:
+    # 상태별로 꼭 필요한 입력: 배송중은 운송장, 배송지연 · 주문취소는 사유
+    if target is S.SHIPPING:
+        return {"courier": "CJ대한통운", "tracking_no": "1234567890"}
+    if target in (S.DELAYED, S.CANCELLED):
+        return {"note": "사유"}
+    return {}
 
 
 def test_transition_table_matches_spec() -> None:
@@ -40,14 +45,14 @@ def test_transition_table_matches_spec() -> None:
 
 @pytest.mark.parametrize(("current", "target"), ALLOWED)
 def test_allowed_admin_transitions(current: OrderStatus, target: OrderStatus) -> None:
-    change = change_by_admin(current, target, changed_at=NOW, **_shipping_info(target))
+    change = change_by_admin(current, target, changed_at=NOW, **_required(target))
     assert (change.from_status, change.to_status, change.changed_at) == (current, target, NOW)
 
 
 @pytest.mark.parametrize(("current", "target"), NOT_ALLOWED)
 def test_not_allowed_admin_transitions(current: OrderStatus, target: OrderStatus) -> None:
     with pytest.raises(BusinessRuleError):
-        change_by_admin(current, target, changed_at=NOW, **_shipping_info(target))
+        change_by_admin(current, target, changed_at=NOW, **_required(target))
 
 
 @pytest.mark.parametrize("status", list(S))
@@ -60,14 +65,44 @@ def test_same_status_is_rejected(status: OrderStatus) -> None:
     ("courier", "tracking_no"),
     [(None, None), ("CJ대한통운", None), (None, "123"), ("  ", "123"), ("CJ대한통운", "")],
 )
-@pytest.mark.parametrize("current", [S.PREPARING, S.DELAYED])
-def test_shipping_requires_courier_and_tracking(current: OrderStatus, courier, tracking_no) -> None:
+def test_shipping_requires_courier_and_tracking(courier, tracking_no) -> None:
     with pytest.raises(InvalidValueError, match="운송장"):
-        change_by_admin(current, S.SHIPPING, changed_at=NOW, courier=courier, tracking_no=tracking_no)
+        change_by_admin(S.PREPARING, S.SHIPPING, changed_at=NOW, courier=courier, tracking_no=tracking_no)
+
+
+def test_shipping_keeps_courier_and_tracking_in_history() -> None:
+    change = change_by_admin(
+        S.PREPARING, S.SHIPPING, changed_at=NOW, changed_by=1, courier=" 한진택배 ", tracking_no="5123-4567-8901"
+    )
+    assert (change.courier, change.tracking_no, change.changed_by) == ("한진택배", "5123-4567-8901", 1)
+
+
+def test_unknown_courier_is_rejected() -> None:
+    with pytest.raises(InvalidValueError, match="택배사"):
+        change_by_admin(S.PREPARING, S.SHIPPING, changed_at=NOW, courier="아무택배", tracking_no="1234567890")
+
+
+@pytest.mark.parametrize("tracking_no", ["1234567", "123456789012345678901", "12AB567890"])
+def test_tracking_no_format_is_checked(tracking_no: str) -> None:
+    with pytest.raises(InvalidValueError, match="8~20자"):
+        change_by_admin(S.PREPARING, S.SHIPPING, changed_at=NOW, courier="CJ대한통운", tracking_no=tracking_no)
+
+
+def test_resume_from_delay_uses_registered_tracking() -> None:
+    change = change_by_admin(S.DELAYED, S.SHIPPING, changed_at=NOW)
+    assert change.to_status is S.SHIPPING
+    assert change.courier is None
+
+
+@pytest.mark.parametrize(("current", "target"), [(S.SHIPPING, S.DELAYED), (S.RECEIVED, S.CANCELLED)])
+@pytest.mark.parametrize("note", [None, "", "   "])
+def test_delay_and_cancel_require_reason(current: OrderStatus, target: OrderStatus, note) -> None:
+    with pytest.raises(InvalidValueError, match="사유"):
+        change_by_admin(current, target, changed_at=NOW, note=note)
 
 
 def test_cancel_restores_stock_and_others_do_not() -> None:
-    assert change_by_admin(S.PREPARING, S.CANCELLED, changed_at=NOW).restores_stock
+    assert change_by_admin(S.PREPARING, S.CANCELLED, changed_at=NOW, note="품절").restores_stock
     assert not change_by_admin(S.RECEIVED, S.PREPARING, changed_at=NOW).restores_stock
 
 

@@ -3,6 +3,7 @@
 Order 클래스(B 담당)는 상태를 바꿀 때 이 모듈의 함수로 검사만 맡기면 돼요.
 그래서 Order 파일을 같이 고치지 않아도 되고, 규칙은 한 곳에서만 관리돼요.
 """
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
@@ -34,6 +35,10 @@ ADMIN_TRANSITIONS: dict[OrderStatus, frozenset[OrderStatus]] = {
 # 고객이 직접 취소할 수 있는 상태 (발송 전까지만)
 CUSTOMER_CANCELLABLE: frozenset[OrderStatus] = frozenset({OrderStatus.RECEIVED, OrderStatus.PREPARING})
 
+# 관리자 화면의 택배사 선택지와 같아요
+COURIERS: tuple[str, ...] = ("CJ대한통운", "우체국택배", "한진택배", "롯데택배")
+TRACKING_NO_PATTERN = re.compile(r"^[0-9-]{8,20}$")
+
 
 @dataclass(frozen=True)
 class StatusChange:
@@ -43,6 +48,9 @@ class StatusChange:
     to_status: OrderStatus
     changed_at: datetime
     note: str | None = None
+    changed_by: int | None = None  # 바꾼 관리자 id, 고객 취소는 None
+    courier: str | None = None  # 처음 배송중으로 바꿀 때만 채워져요
+    tracking_no: str | None = None
 
     @property
     def restores_stock(self) -> bool:
@@ -63,6 +71,7 @@ def change_by_admin(
     target: OrderStatus,
     *,
     changed_at: datetime,
+    changed_by: int | None = None,
     courier: str | None = None,
     tracking_no: str | None = None,
     note: str | None = None,
@@ -72,9 +81,23 @@ def change_by_admin(
         raise BusinessRuleError(f"이미 '{current}' 상태예요.")
     if target not in ADMIN_TRANSITIONS[current]:
         raise BusinessRuleError(f"'{current}' 상태에서 '{target}'(으)로 바꿀 수 없어요.")
-    if target is OrderStatus.SHIPPING and not (_filled(courier) and _filled(tracking_no)):
-        raise InvalidValueError("배송중으로 바꾸려면 택배사와 운송장 번호가 필요해요.")
-    return StatusChange(from_status=current, to_status=target, changed_at=changed_at, note=note)
+    note = note.strip() if note and note.strip() else None
+    if target in (OrderStatus.DELAYED, OrderStatus.CANCELLED) and note is None:
+        raise InvalidValueError(f"'{target}'(으)로 바꾸려면 사유를 입력해 주세요.")
+
+    # 처음 출고(상품준비중 → 배송중)할 때만 운송장을 받아요. 배송지연 → 배송중은 이미 등록된 운송장을 그대로 써요
+    shipping = None
+    if target is OrderStatus.SHIPPING and current is OrderStatus.PREPARING:
+        shipping = _validated_shipping(courier, tracking_no)
+    return StatusChange(
+        from_status=current,
+        to_status=target,
+        changed_at=changed_at,
+        note=note,
+        changed_by=changed_by,
+        courier=shipping[0] if shipping else None,
+        tracking_no=shipping[1] if shipping else None,
+    )
 
 
 def cancel_by_customer(current: OrderStatus, *, changed_at: datetime) -> StatusChange:
@@ -84,5 +107,13 @@ def cancel_by_customer(current: OrderStatus, *, changed_at: datetime) -> StatusC
     return StatusChange(from_status=current, to_status=OrderStatus.CANCELLED, changed_at=changed_at)
 
 
-def _filled(value: str | None) -> bool:
-    return bool(value and value.strip())
+def _validated_shipping(courier: str | None, tracking_no: str | None) -> tuple[str, str]:
+    courier = (courier or "").strip()
+    tracking_no = (tracking_no or "").strip()
+    if not courier or not tracking_no:
+        raise InvalidValueError("배송중으로 바꾸려면 택배사와 운송장 번호가 필요해요.")
+    if courier not in COURIERS:
+        raise InvalidValueError(f"지원하지 않는 택배사예요. ({', '.join(COURIERS)} 중에서 골라 주세요)")
+    if not TRACKING_NO_PATTERN.fullmatch(tracking_no):
+        raise InvalidValueError("운송장 번호는 숫자와 '-'로 8~20자여야 해요.")
+    return courier, tracking_no
