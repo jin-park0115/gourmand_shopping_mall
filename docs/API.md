@@ -1,7 +1,7 @@
 # API 명세 초안 (SCRUM-10)
 
 > 기준: `develop` 의 라우터 prefix(`presentation/*/router.py`)와 ORM 모델(SCRUM-8), 도메인 규칙(SCRUM-16 · 32)
-> 각자 담당 엔드포인트를 자기 절에 채워요. 지금은 **공통 규칙**과 **C 관리자 주문**만 작성돼 있어요.
+> 각자 담당 엔드포인트를 자기 절에 채워요. 작성됨: **공통 규칙** · **A 상품 · 리뷰** · **C 관리자 주문**.
 > 최종본은 팀 Notion 표(메서드 · 경로 · 요청/응답 · 에러 코드 · 권한)로 옮깁니다.
 
 ## 공통 규칙
@@ -40,7 +40,225 @@
 
 ## A 상품 · 리뷰 (박진)
 
-> 담당자가 채워 주세요. 관련 티켓: SCRUM-22 상품 목록, SCRUM-23 상품 상세, SCRUM-25 리뷰
+프론트 `lib/products.ts` 의 `findProducts()` · `getProduct()` 와 `data/products.ts` 정적 배열을 서버로 옮기는 API예요.
+응답 필드는 프론트 `types/product.ts` 와 같게 맞춰서 화면 코드를 최소로 고치게 해요.
+
+| 메서드 | 경로 | 설명 | 권한 | 성공 | 오류 | 티켓 |
+| --- | --- | --- | --- | --- | --- | --- |
+| GET | `/products` | 상품 목록 (검색 · 나라/카테고리 필터 · 정렬 · 페이지) | 공개 | 200 | 422 | SCRUM-22 |
+| GET | `/products/{productId}` | 상품 상세 | 공개 | 200 | 404 · 422 | SCRUM-23 |
+| GET | `/categories` | 카테고리 6개 + 상품 수 | 공개 | 200 | - | SCRUM-22 |
+| GET | `/products/{productId}/reviews` | 리뷰 목록 (최신순 · 페이지) | 공개 | 200 | 404 · 422 | SCRUM-25 |
+| POST | `/products/{productId}/reviews` | 리뷰 작성 | 회원 | 201 | 401 · 404 · 409 · 422 | SCRUM-25 |
+| PATCH | `/reviews/{reviewId}` | 내 리뷰 수정 | 회원 (본인) | 200 | 401 · 403 · 404 · 422 | SCRUM-25 |
+| DELETE | `/reviews/{reviewId}` | 내 리뷰 삭제 | 회원 (본인) | 204 | 401 · 403 · 404 | SCRUM-25 |
+
+### 응답 공통: Product
+
+목록 · 상세가 같은 모양이에요.
+
+```json
+{
+  "id": 3,
+  "name": "오리히로 곤약젤리 사과&포도 12개입",
+  "price": 4500,
+  "discountPrice": 3900,
+  "country": "일본",
+  "countrySlug": "japan",
+  "category": "젤리·캔디",
+  "categorySlug": "candy",
+  "imageUrl": "/images/products/3.webp",
+  "description": "사과와 포도 두 가지 맛의 쫀득한 곤약젤리. …",
+  "isNew": false,
+  "rating": 4.8,
+  "reviewCount": 74,
+  "stock": 120,
+  "isSoldOut": false,
+  "deliveryDays": 3,
+  "volume": 25,
+  "unit": "g",
+  "itemCount": 12,
+  "origin": "일본",
+  "foodType": "젤리",
+  "manufacturer": "오리히로",
+  "storageMethod": "직사광선을 피해 서늘한 곳에 보관"
+}
+```
+
+| 필드 | 출처 | 설명 |
+| --- | --- | --- |
+| `id` | `product.product_id` | |
+| `discountPrice` | `product.discount_price` | 할인 없으면 `null` (프론트 타입은 `undefined` 기대 → `?? undefined` 처리) |
+| `country` · `countrySlug` | `country.name` · `country.slug` | slug는 `japan` `taiwan` `china` `vietnam`, 그 외 나라는 `other` (합의 2) |
+| `category` · `categorySlug` | `category.name` · `category.slug` | 6개 분류 (합의 1) |
+| `rating` | `review.rating` 평균 | 소수 첫째 자리 반올림, 리뷰 없으면 `0` |
+| `reviewCount` | `review` 개수 | |
+| `isSoldOut` | 계산 | `stock = 0` (도메인 `Product.is_sold_out`, SCRUM-21) |
+| 나머지 | `product.*` 같은 이름 | snake_case → camelCase |
+
+### GET /products
+
+기존 `findProducts()` 규칙을 그대로 옮겨요.
+
+| 쿼리 | 타입 | 필수 | 기본 | 설명 |
+| --- | --- | --- | --- | --- |
+| `q` | 문자열 (최대 50자) | - | - | 검색어. 대소문자 · 띄어쓰기 무시 ("도쿄 바나나" = "도쿄바나나"). 상품명 · 나라 · 카테고리 · 제조사 · 식품유형 · 설명에서 찾아요 |
+| `country` | `japan` `taiwan` `china` `vietnam` `other` | - | 전체 | `other` = 앞의 4개국이 아닌 나라 |
+| `category` | 카테고리 slug | - | 전체 | `GET /categories` 의 `slug` |
+| `ids` | 쉼표로 구분한 정수 (최대 100개) | - | - | 픽 페이지용 (`ids=1,5,9`). 없는 id는 빠져요 |
+| `sort` | `recommend` `review` `low` `high` `new` | - | `recommend` | 아래 표 |
+| `page` | 정수 ≥ 1 | - | 1 | |
+| `size` | 정수 1~100 | - | 20 | 메인 화면처럼 전체가 필요하면 `size=100` |
+
+| sort | 이름 | 순서 |
+| --- | --- | --- |
+| `recommend` | 추천순 | 검색어가 상품명에 있는 상품 먼저 → 평점 높은 순 |
+| `review` | 리뷰 많은순 | `reviewCount` 내림차순 |
+| `low` | 낮은 가격순 | 판매가(`discountPrice` 있으면 그 값, 없으면 `price`) 오름차순 |
+| `high` | 높은 가격순 | 판매가 내림차순 |
+| `new` | 신상품순 | `isNew` 먼저 → `id` 내림차순 |
+
+모든 정렬에서 **품절 상품은 맨 뒤**, 같은 순위면 `id` 오름차순이에요 (페이지가 바뀌어도 순서가 흔들리지 않게).
+
+```http
+GET /products?q=도쿄바나나&country=japan&sort=low&page=1&size=20
+```
+
+```json
+{ "items": [ { "id": 4, "name": "도쿄 바나나 8개입", "…": "Product" } ], "total": 1, "page": 1, "size": 20, "pages": 1 }
+```
+
+| 오류 | code | 예 |
+| --- | --- | --- |
+| 422 | `VALIDATION_ERROR` | `sort=cheap`, `country=korea`, `size=500`, `ids=a,b`, `q` 50자 초과 |
+
+없는 `category` slug는 오류가 아니라 빈 목록(`total: 0`)이에요. 화면은 "결과 없음"을 보여 주면 돼요.
+
+### GET /products/{productId}
+
+| 경로 값 | 타입 | 설명 |
+| --- | --- | --- |
+| `productId` | 정수 ≥ 1 | 상품 번호 |
+
+성공하면 Product 하나를 돌려줘요.
+
+| 오류 | code | 예 |
+| --- | --- | --- |
+| 404 | `NOT_FOUND` | "상품을 찾을 수 없어요." → 프론트 `notFound()` 로 `app/not-found.tsx` 화면 |
+| 422 | `VALIDATION_ERROR` | `productId` 가 숫자가 아님 |
+
+### GET /categories
+
+카테고리 화면(`app/category/page.tsx`)의 "N개" 표시가 지금은 `lib/categories.ts` 의 손으로 적은 `productIds` 길이예요. 상품이 DB로 옮겨 가면 이 숫자가 실제와 어긋나서 서버에서 세어 줘요.
+소개 문구(`desc`) · 대표 이미지(`imageId`)는 화면 꾸밈이라 프론트에 그대로 둬요.
+
+```json
+[
+  { "slug": "snack", "name": "스낵·칩", "productCount": 16 },
+  { "slug": "cookie", "name": "쿠키·비스킷", "productCount": 8 },
+  { "slug": "candy", "name": "젤리·캔디", "productCount": 12 }
+]
+```
+
+나라 목록 API는 만들지 않아요. 나라 메뉴 · 배너는 화면 고정값이고 상품 수를 보여 주지 않아요.
+
+### 응답 공통: Review
+
+```json
+{
+  "id": 12,
+  "productId": 3,
+  "authorName": "김구르",
+  "rating": 5,
+  "content": "식감이 쫀득해서 아이들이 좋아해요.",
+  "createdAt": "2026-10-23T14:05:00+09:00",
+  "updatedAt": null,
+  "isMine": true
+}
+```
+
+| 필드 | 출처 | 설명 |
+| --- | --- | --- |
+| `authorName` | `member.name` | 작성자 이름 (합의 4) |
+| `updatedAt` | `review.updated_at` | 수정한 적 없으면 `null` |
+| `isMine` | 계산 | 로그인한 요청이고 작성자가 본인이면 `true`. 토큰이 없으면 항상 `false` (합의 5) |
+
+### GET /products/{productId}/reviews
+
+최신순 (`created_at` 내림차순, 같으면 `review_id` 내림차순). 토큰은 **있어도 되고 없어도 돼요** (있으면 `isMine` 계산).
+
+| 쿼리 | 타입 | 필수 | 기본 |
+| --- | --- | --- | --- |
+| `page` | 정수 ≥ 1 | - | 1 |
+| `size` | 정수 1~50 | - | 10 |
+
+```json
+{ "items": [ { "id": 12, "…": "Review" } ], "total": 74, "page": 1, "size": 10, "pages": 8 }
+```
+
+| 오류 | code | 예 |
+| --- | --- | --- |
+| 404 | `NOT_FOUND` | 없는 상품 |
+| 422 | `VALIDATION_ERROR` | `size=100` |
+
+### POST /products/{productId}/reviews
+
+| 본문 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `rating` | 정수 1~5 | O | 별점 |
+| `content` | 문자열 10~1000자 (앞뒤 공백 제거 후) | O | 내용 |
+
+```http
+POST /products/3/reviews
+Authorization: Bearer eyJ…
+Content-Type: application/json
+
+{ "rating": 5, "content": "식감이 쫀득해서 아이들이 좋아해요." }
+```
+
+성공하면 `201` 과 만든 Review(`isMine: true`)를 돌려줘요.
+
+| 오류 | code | 예 |
+| --- | --- | --- |
+| 401 | `UNAUTHORIZED` | 토큰 없음 · 만료 · 로그아웃된 토큰 |
+| 404 | `NOT_FOUND` | 없는 상품 |
+| 409 | `CONFLICT` | "이미 이 상품에 리뷰를 작성했어요." (상품당 1인 1리뷰, DB UNIQUE로도 막아요) |
+| 422 | `VALIDATION_ERROR` | `rating=6`, `content` 10자 미만 · 1000자 초과 |
+
+### PATCH /reviews/{reviewId}
+
+보낸 필드만 바꿔요. 둘 다 생략하면 422.
+
+| 본문 | 타입 | 필수 |
+| --- | --- | --- |
+| `rating` | 정수 1~5 | - |
+| `content` | 문자열 10~1000자 | - |
+
+성공하면 바뀐 Review(`updatedAt` 채워짐)를 돌려줘요.
+
+| 오류 | code | 예 |
+| --- | --- | --- |
+| 401 | `UNAUTHORIZED` | |
+| 403 | `FORBIDDEN` | "본인이 작성한 리뷰만 수정할 수 있어요." (관리자도 남의 리뷰는 수정 불가) |
+| 404 | `NOT_FOUND` | 없는 리뷰 |
+| 422 | `VALIDATION_ERROR` | 바꿀 값 없음, 범위 밖 |
+
+### DELETE /reviews/{reviewId}
+
+성공하면 `204` (본문 없음). 오류는 PATCH와 같아요 (403 메시지 "본인이 작성한 리뷰만 삭제할 수 있어요.").
+
+### A 구현 전에 합의할 것
+
+| # | 항목 | 누구와 | 내용 |
+| --- | --- | --- | --- |
+| 1 | 카테고리 기준 통일 | 안중섭 (SCRUM-15) | DB `category`(과자 · 젤리·캔디 …)와 프론트 `lib/categories.ts`(6개 분류, 상품 번호로 묶음)가 달라요. `category.slug` 컬럼을 추가하고 시드를 프론트 6개 분류로 맞추자는 제안 |
+| 2 | 나라 slug | 안중섭 (SCRUM-15) | `country.slug` 컬럼 추가 (`japan` `taiwan` `china` `vietnam`, 나머지는 slug 없이 `other` 로 응답) |
+| 3 | 평점 · 리뷰 수 | 안중섭 (SCRUM-15) | DB에 컬럼이 없어서 `review` 에서 집계해요. 시드에 리뷰가 없으면 처음엔 모두 0 → 시드 리뷰를 넣을지 |
+| 4 | `review.member_id` | 윤강 (SCRUM-18) | 지금 `review` 에는 `author_name` 만 있어 1인 1리뷰 · 본인 확인을 못 해요. `member_id` FK + `(product_id, member_id)` UNIQUE + `updated_at` 추가, `author_name` 제거 |
+| 5 | 선택 로그인 의존성 | 윤강 (SCRUM-19) | 리뷰 목록의 `isMine` 용으로 "토큰 있으면 회원, 없으면 None" 을 돌려주는 `get_optional_user` |
+| 6 | 재고 변경 함수 | 안중섭 (SCRUM-35) · 윤강 (SCRUM-29) | ProductRepository 에 `decrease_stock` · `increase_stock` 를 두고 주문 · 취소에서 같이 써요 (SCRUM-21) |
+
+컬럼 변경(1 · 2 · 4)은 합의되면 SCRUM-21 에서 Alembic 리비전으로 넣어요.
 
 ## B 인증 · 장바구니 · 주문 (윤강)
 
