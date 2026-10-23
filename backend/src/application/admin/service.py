@@ -94,7 +94,8 @@ class AdminOrderStatusService:
             # 5. 취소면 재고 복구
             if change.restores_stock:
                 await self._restore_stock(order_id)
-                # TODO(윤강 님과 합의): 취소 시 payment.status 를 어떤 값으로 바꿀지 정해지면 여기서 함께 변경
+                # 결제가 있으면 결제취소로 (없는 주문은 건너뛰어요)
+                await self.commands.cancel_payment(order_id)
 
             await self.session.commit()
         except Exception:

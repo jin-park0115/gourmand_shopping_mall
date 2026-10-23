@@ -313,7 +313,7 @@ Content-Type: application/json
 | `buyer.*` | `orders.recipient · phone · zipcode · address1 · address2` | 받는 사람 정보. `buyerName` = `recipient` |
 | `items[].price` | `order_item.unit_price` | 주문 당시 가격 (지금 상품 가격이 아님) |
 | `items[].name · imageUrl` | `product.name · image_url` | |
-| `courier · trackingNo · adminNote` | `orders` 추가 컬럼 (C 제안, ERD 참고) | 컬럼 추가 합의 전에는 `null` |
+| `courier · trackingNo · adminNote` | `orders.courier · tracking_no · admin_note` (SCRUM-35 리비전) | 출고 전에는 `courier · trackingNo`가 `null`, 사유를 남긴 적이 없으면 `adminNote`가 `null` |
 | `nextStatuses` | 도메인 `ADMIN_TRANSITIONS` | 관리자가 지금 바꿀 수 있는 상태. 화면 버튼을 이 값으로 보여 줘요 |
 | `history` | `order_status_history` (SCRUM-33) | 오래된 순. 첫 줄은 주문 생성(`접수`) |
 
@@ -418,7 +418,7 @@ Content-Type: application/json
 2. 도메인 규칙으로 검사해요 (`change_by_admin`).
 3. `orders.status`를 바꾸고, 출고면 택배사 · 운송장을, 사유가 있으면 `adminNote`를 저장해요.
 4. `order_status_history`에 한 줄 추가해요 (바꾼 관리자 id 포함, SCRUM-33).
-5. `주문취소`면 주문 상품 수량만큼 `product.stock`을 되돌리고, 결제 상태를 바꿔요 (결제 상태 값은 B와 합의).
+5. `주문취소`면 주문 상품 수량만큼 `product.stock`을 되돌리고(상품을 `product_id` 순서로 잠근 뒤 `increase_stock`), 결제 상태를 `결제취소`로 바꿔요. 결제 행이 없는 주문은 결제 쪽을 건너뛰어요.
 
 | 오류 | code | 예 |
 | --- | --- | --- |
@@ -429,12 +429,12 @@ Content-Type: application/json
 
 ### C 구현 전에 합의할 것
 
-| 항목 | 누구와 | 내용 |
-| --- | --- | --- |
-| `require_admin` | 윤강 (SCRUM-19) | 관리자 확인 의존성 이름 · 위치, 로그아웃 토큰 401 |
-| `orders` 컬럼 추가 | 윤강 (SCRUM-29) | `courier` · `tracking_no` · `admin_note` · `updated_at` (ERD의 C 제안) |
-| 주문 생성 때 이력 첫 줄 | 윤강 (SCRUM-29) | 주문을 만들 때 `order_status_history`에 `접수` 한 줄을 같이 넣을지 |
-| 취소 때 결제 상태 | 윤강 | `payment.status`를 무엇으로 바꿀지 |
-| 재고 복구 | 박진 (SCRUM-21) | `product.stock`을 늘리는 방법 (Repository 함수 공유) |
-| camelCase · Page 형식 | 팀 전체 | 위 공통 규칙 두 줄 |
-| 화면용 주문번호 | 윤강 · 박진 | 지금은 정수 `orderId`. 화면에 `G20261023-0001` 같은 번호가 필요하면 컬럼 추가 |
+| 항목 | 누구와 | 내용 | 상태 |
+| --- | --- | --- | --- |
+| `require_admin` | 윤강 (SCRUM-19) | 위치 `presentation/auth/dependencies.py`. 통과하면 `CurrentUser(member_id, email, role)`를 돌려줘요. 토큰 없음 · 만료 · 로그아웃된 토큰은 401, 로그인했지만 `role`이 `admin`이 아니면 403 | 합의됨 (구현은 SCRUM-19) |
+| `orders` 컬럼 추가 | 윤강 (SCRUM-29) | `courier` · `tracking_no` · `admin_note` · `updated_at` + `(status, ordered_at)` 인덱스 | 합의됨 |
+| 주문 생성 때 이력 첫 줄 | 윤강 (SCRUM-29) | 주문을 만들 때 `order_status_history`에 `접수` 한 줄(`received()`)을 같이 넣어요 | 합의됨 (SCRUM-29에서 윤강) |
+| 취소 때 결제 상태 | 윤강 | 관리자 취소 때 `payment.status`를 `결제취소`로 (값: 결제완료 · 결제취소) | 합의됨 |
+| 재고 복구 | 박진 (SCRUM-21) | `ProductRepository.get_for_update` → `increase_stock` → `save_stock` | 합의됨 |
+| camelCase · Page 형식 | 팀 전체 | 공통 `presentation/schemas.py`의 `CamelModel` · `Page[T]` (PR #15) | 합의됨 |
+| 화면용 주문번호 | 윤강 · 박진 | 지금은 정수 `orderId`. 화면에 `G20261023-0001` 같은 번호가 필요하면 컬럼 추가 | 미정 |

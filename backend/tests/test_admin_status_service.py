@@ -8,7 +8,7 @@ from application.admin.service import AdminOrderStatusService
 from domain.exceptions import BusinessRuleError, InvalidValueError, NotFoundError
 from domain.order.status import OrderStatus
 from infrastructure.admin.models import OrderStatusHistoryModel
-from infrastructure.order.models import OrderModel
+from infrastructure.order.models import OrderModel, PaymentModel
 from infrastructure.product.models import ProductModel
 from tests.factories import make_member, make_order, make_product
 
@@ -83,6 +83,35 @@ async def test_cancel_restores_stock_when_same_product_is_in_several_lines(db_se
     await db_session.commit()
     await ctx["service"].change_status(order.order_id, "주문취소", admin_id=ctx["admin_id"], note="중복 주문")
     assert await _stock(db_session, ctx["lotus_id"]) == 15  # 10 + 1 + 4
+
+
+async def _add_payment(db_session, order_id: int) -> None:
+    db_session.add(PaymentModel(order_id=order_id, method="카드", amount=15000, status="결제완료", paid_at=NOW))
+    await db_session.commit()
+
+
+async def _payment_status(db_session, order_id: int) -> str | None:
+    return await db_session.scalar(select(PaymentModel.status).where(PaymentModel.order_id == order_id))
+
+
+async def test_cancel_marks_payment_cancelled(db_session, ctx) -> None:
+    await _add_payment(db_session, ctx["order_id"])
+    await ctx["service"].change_status(ctx["order_id"], "주문취소", admin_id=ctx["admin_id"], note="품절")
+    assert await _payment_status(db_session, ctx["order_id"]) == "결제취소"
+
+
+async def test_cancel_without_payment_succeeds(db_session, ctx) -> None:
+    view = await ctx["service"].change_status(ctx["order_id"], "주문취소", admin_id=ctx["admin_id"], note="품절")
+    assert view.status is S.CANCELLED
+    assert await _payment_status(db_session, ctx["order_id"]) is None
+
+
+async def test_shipping_keeps_payment_status(db_session, ctx) -> None:
+    await _add_payment(db_session, ctx["order_id"])
+    await ctx["service"].change_status(
+        ctx["order_id"], "배송중", admin_id=ctx["admin_id"], courier="CJ대한통운", tracking_no="1234567890"
+    )
+    assert await _payment_status(db_session, ctx["order_id"]) == "결제완료"
 
 
 async def test_second_cancel_is_rejected_and_stock_restored_once(db_session, ctx) -> None:

@@ -1,7 +1,7 @@
 """관리자 주문 운영 Repository: ORM 모델 ↔ 도메인 객체 변환, 비동기 조회·저장."""
 from datetime import date, datetime, time, timedelta
 
-from sqlalchemy import ColumnElement, exists, func, or_, select
+from sqlalchemy import ColumnElement, exists, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -16,10 +16,12 @@ from domain.admin.views import (
 )
 from domain.order.status import OrderStatus, StatusChange
 from infrastructure.admin.models import OrderStatusHistoryModel
-from infrastructure.order.models import OrderItemModel, OrderModel
+from infrastructure.order.models import OrderItemModel, OrderModel, PaymentModel
 from infrastructure.product.models import ProductModel
 
 TOP_PRODUCT_LIMIT = 5
+# payment.status 값: 결제완료 · 결제취소 (윤강 합의, SCRUM-29). 결제 쪽 값 정의는 B 영역이라 여기서는 상수 하나만 써요
+PAYMENT_CANCELLED = "결제취소"
 _CANCELLED = OrderStatus.CANCELLED.value
 _BEFORE_SHIPMENT = (OrderStatus.RECEIVED, OrderStatus.PREPARING)
 
@@ -129,6 +131,12 @@ class AdminOrderCommandRepository:
         # 같은 주문을 동시에 바꾸면 두 번째 요청은 첫 번째가 끝날 때까지 기다렸다가 바뀐 상태로 검사돼요
         return await self.session.scalar(
             select(OrderModel).where(OrderModel.order_id == order_id).with_for_update().execution_options(populate_existing=True)
+        )
+
+    async def cancel_payment(self, order_id: int) -> None:
+        """주문의 결제 상태를 결제취소로 바꿔요. 결제 행이 없으면 아무것도 하지 않아요."""
+        await self.session.execute(
+            update(PaymentModel).where(PaymentModel.order_id == order_id).values(status=PAYMENT_CANCELLED)
         )
 
     async def quantities_by_product(self, order_id: int) -> list[tuple[int, int]]:
