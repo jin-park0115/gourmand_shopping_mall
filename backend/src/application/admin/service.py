@@ -5,13 +5,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from domain.admin.views import AdminOrderQuery, AdminOrderView, OrderSummary, Page
 from domain.exceptions import NotFoundError
-from infrastructure.admin.repositories import AdminOrderQueryRepository
+from domain.order.status import OrderStatus, change_by_admin, parse_status
+from infrastructure.admin.repositories import (
+    AdminOrderCommandRepository,
+    AdminOrderQueryRepository,
+    OrderStatusHistoryRepository,
+)
 
 KST = timezone(timedelta(hours=9))
 
 
 def today_kst() -> date:
     return datetime.now(KST).date()
+
+
+def now_kst() -> datetime:
+    # DB 시간 컬럼은 시간대 없이 KST 로 저장해요
+    return datetime.now(KST).replace(tzinfo=None)
 
 
 class AdminOrderQueryService:
@@ -32,3 +42,63 @@ class AdminOrderQueryService:
         if order is None:
             raise NotFoundError("주문을 찾을 수 없어요.")
         return order
+
+
+class AdminOrderStatusService:
+    """관리자 상태 변경 · 취소 (PATCH /admin/orders/{orderId}/status). 한 요청 = 한 트랜잭션."""
+
+    def __init__(self, session: AsyncSession, *, now=now_kst):
+        self.session = session
+        self.commands = AdminOrderCommandRepository(session)
+        self.history = OrderStatusHistoryRepository(session)
+        self.queries = AdminOrderQueryRepository(session)
+        self._now = now
+
+    async def change_status(
+        self,
+        order_id: int,
+        status: str | OrderStatus,
+        *,
+        admin_id: int | None,
+        courier: str | None = None,
+        tracking_no: str | None = None,
+        note: str | None = None,
+    ) -> AdminOrderView:
+        try:
+            # 1. 주문 행을 잠그고 읽어요 (SELECT … FOR UPDATE)
+            order = await self.commands.lock(order_id)
+            if order is None:
+                raise NotFoundError("주문을 찾을 수 없어요.")
+
+            # 2. 도메인 규칙 검사 (허용 전이 · 운송장 · 사유)
+            target = status if isinstance(status, OrderStatus) else parse_status(status)
+            now = self._now()
+            change = change_by_admin(
+                OrderStatus(order.status), target,
+                changed_at=now, changed_by=admin_id, courier=courier, tracking_no=tracking_no, note=note,
+            )
+
+            # 3. 주문 갱신
+            order.status = change.to_status.value
+            order.updated_at = now
+            if change.courier:
+                order.courier, order.tracking_no = change.courier, change.tracking_no
+            if change.note:
+                order.admin_note = change.note
+
+            # 4. 이력 한 줄
+            await self.history.add(order_id, change)
+
+            # 5. 취소면 재고 복구
+            if change.restores_stock:
+                await self.commands.restore_stock(order_id)
+                # TODO(윤강 님과 합의): 취소 시 payment.status 를 어떤 값으로 바꿀지 정해지면 여기서 함께 변경
+
+            await self.session.commit()
+        except Exception:
+            await self.session.rollback()
+            raise
+
+        view = await self.queries.get(order_id)
+        assert view is not None
+        return view

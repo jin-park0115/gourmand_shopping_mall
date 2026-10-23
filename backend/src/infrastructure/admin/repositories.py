@@ -1,7 +1,7 @@
 """관리자 주문 운영 Repository: ORM 모델 ↔ 도메인 객체 변환, 비동기 조회·저장."""
 from datetime import date, datetime, time, timedelta
 
-from sqlalchemy import ColumnElement, exists, func, or_, select
+from sqlalchemy import ColumnElement, exists, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -119,6 +119,31 @@ class AdminOrderQueryRepository:
         )
 
 
+class AdminOrderCommandRepository:
+    """관리자 상태 변경용 쓰기 작업. commit 은 응용 서비스가 해요."""
+
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def lock(self, order_id: int) -> OrderModel | None:
+        # 같은 주문을 동시에 바꾸면 두 번째 요청은 첫 번째가 끝날 때까지 기다렸다가 바뀐 상태로 검사돼요
+        return await self.session.scalar(
+            select(OrderModel).where(OrderModel.order_id == order_id).with_for_update().execution_options(populate_existing=True)
+        )
+
+    async def restore_stock(self, order_id: int) -> None:
+        # TODO(SCRUM-21): 박진 님 ProductRepository.increase_stock 이 생기면 그 함수로 교체
+        lines = await self.session.execute(
+            select(OrderItemModel.product_id, OrderItemModel.quantity).where(OrderItemModel.order_id == order_id)
+        )
+        for product_id, quantity in lines.all():
+            await self.session.execute(
+                update(ProductModel)
+                .where(ProductModel.product_id == product_id)
+                .values(stock=ProductModel.stock + quantity)
+            )
+
+
 def _with_lines(stmt):
     return stmt.options(selectinload(OrderModel.items).selectinload(OrderItemModel.product))
 
@@ -184,10 +209,9 @@ def _to_view(row: OrderModel, history: list[StatusChange] | None = None) -> Admi
             # relationship 에 순서가 없어서, 담긴 순서(order_item_id)로 고정해요
             for item in sorted(row.items, key=lambda i: i.order_item_id)
         ],
-        # orders 의 택배사 · 운송장 · 메모 컬럼은 SCRUM-35 리비전에서 추가돼요. 그 전에는 None
-        courier=getattr(row, "courier", None),
-        tracking_no=getattr(row, "tracking_no", None),
-        admin_note=getattr(row, "admin_note", None),
+        courier=row.courier,
+        tracking_no=row.tracking_no,
+        admin_note=row.admin_note,
         history=history,
     )
 
