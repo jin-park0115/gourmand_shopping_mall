@@ -1,6 +1,6 @@
 """공통 비동기 DB 설정 (SQLAlchemy 2.x + asyncpg).
 
-테이블 생성은 main.py 의 lifespan 에서 Base.metadata.create_all 로 수행합니다.
+스키마 변경은 Alembic 마이그레이션(migrations/)으로 관리합니다.
 """
 from collections.abc import AsyncIterator
 

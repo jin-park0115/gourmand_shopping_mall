@@ -6,6 +6,7 @@
 cd backend
 uv sync                       # Python 3.13 가상환경 + 의존성 설치
 copy .env.example .env        # (macOS/Linux: cp) 후 값 수정
+uv run alembic upgrade head   # DB 스키마 생성/갱신
 uv run uvicorn main:app --app-dir src --reload
 ```
 
@@ -63,3 +64,15 @@ raise BusinessRuleError("배송완료된 주문은 취소할 수 없어요.")
 ## 인수 당시 코드
 
 `legacy/` 폴더 참고 (기준 커밋 `9d162f6`).
+
+## DB 마이그레이션 (Alembic)
+
+```bash
+uv run alembic revision --autogenerate -m "설명"   # 모델 변경 후 리비전 생성 → 파일 검토 필수
+uv run alembic upgrade head                         # 적용
+uv run alembic downgrade -1                         # 한 단계 되돌리기
+```
+
+- 새 `models.py` 는 `src/infrastructure/models.py` 에 import 한 줄을 추가해야 autogenerate 가 인식합니다.
+- `alembic.ini` 에는 한글을 넣지 마세요 (Windows 에서 cp949 로 읽어 실패).
+- 예전에 lifespan `create_all` 로 테이블을 만든 DB는 스키마가 같으면 `uv run alembic stamp head` 한 번이면 됩니다.
