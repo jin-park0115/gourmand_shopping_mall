@@ -1,8 +1,8 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import type { Metadata } from "next";
 
-import { products } from "@/data/products";
-import { COUNTRY_FILTERS, isSoldOut } from "@/lib/products";
+import { COUNTRY_FILTERS, fetchProducts, isSoldOut } from "@/lib/products";
 
 import ProductCard from "@/components/ProductCard";
 import BackButton from "@/components/BackButton";
@@ -13,10 +13,16 @@ export const metadata: Metadata = {
 };
 
 // 리뷰가 많은 순으로 인기 간식 4개 (품절 제외)
-const popular = products
-  .filter((p) => !isSoldOut(p))
-  .sort((a, b) => b.reviewCount - a.reviewCount)
-  .slice(0, 4);
+async function PopularProducts() {
+  const popular = (await fetchProducts({ sort: "review" })).items.filter((p) => !isSoldOut(p)).slice(0, 4);
+  return (
+    <div className="grid grid-cols-2 gap-x-4 gap-y-8 md:grid-cols-4">
+      {popular.map((p) => (
+        <ProductCard key={p.id} p={p} showCountry />
+      ))}
+    </div>
+  );
+}
 
 // 잘못된 주소, 없는 상품·나라·PICK 주소로 들어왔을 때 보여주는 페이지 (404)
 // notFound()를 부른 페이지도 모두 이 화면으로 와요
@@ -106,11 +112,9 @@ export default function NotFound() {
             전체보기
           </Link>
         </div>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-8 md:grid-cols-4">
-          {popular.map((p) => (
-            <ProductCard key={p.id} p={p} showCountry />
-          ))}
-        </div>
+        <Suspense fallback={null}>
+          <PopularProducts />
+        </Suspense>
       </section>
     </main>
   );

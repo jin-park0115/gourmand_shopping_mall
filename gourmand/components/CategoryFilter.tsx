@@ -1,12 +1,12 @@
 import Link from "next/link";
 
 import type { Product } from "@/types/product";
-import { CATEGORIES, categoryImage, categoryOf } from "@/lib/categories";
+import { CATEGORIES } from "@/lib/categories";
 
 // 선택한 종류의 상품만 남기기 (종류를 고르지 않았거나 없는 값이면 전부)
 export function filterByCategory(items: Product[], slug?: string) {
   if (!slug || !CATEGORIES.some((c) => c.slug === slug)) return items;
-  return items.filter((p) => categoryOf(p.id)?.slug === slug);
+  return items.filter((p) => p.categorySlug === slug);
 }
 
 // 나라 페이지 · PICK 페이지 안에서 쓰는 과자 종류 필터
@@ -22,7 +22,7 @@ export default function CategoryFilter({
 }) {
   const chips = CATEGORIES.map((c) => ({
     ...c,
-    count: items.filter((p) => categoryOf(p.id)?.slug === c.slug).length,
+    count: items.filter((p) => p.categorySlug === c.slug).length,
   })).filter((c) => c.count > 0);
 
   // 종류가 하나뿐이면 필터가 필요 없어요
@@ -53,7 +53,7 @@ export default function CategoryFilter({
           aria-current={active === c.slug ? "true" : undefined}
           className={`${chipClass(active === c.slug)} pl-1 pr-2.5 md:pl-1.5 md:pr-3.5`}
         >
-          <img src={categoryImage(c)} alt="" className="h-6 w-6 rounded-full bg-white object-contain md:h-7 md:w-7" />
+          <img src={c.image} alt="" className="h-6 w-6 rounded-full bg-white object-contain md:h-7 md:w-7" />
           {c.name}
           <span className="font-medium opacity-80">{c.count}</span>
         </Link>

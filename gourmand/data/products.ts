@@ -1,7 +1,8 @@
 import { Product } from '@/types/product';
 
 // PostgreSQL gourmand 스키마에서 생성한 상품 데이터
-export const products: Product[] = [
+// 쇼핑몰 화면은 API(/products)를 써요. 이 파일은 관리자 화면(SCRUM-36)이 API로 바뀌면 지워요.
+export const products: Omit<Product, 'countrySlug' | 'categorySlug'>[] = [
   {
     "id": 1,
     "name": "쟈가리코 샐러드맛",

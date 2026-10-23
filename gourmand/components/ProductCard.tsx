@@ -1,16 +1,14 @@
 import Link from "next/link";
 import { Product } from "@/types/product";
+import { discountRate as rateOf, isSoldOut, salePrice as priceOf } from "@/lib/products";
 import AddToCartButton from "@/components/AddToCartButton";
 
 // showCountry: 여러 나라 상품이 섞인 목록(카테고리 페이지)에서 나라 표시
 export default function ProductCard({ p, showCountry = false }: { p: Product; showCountry?: boolean }) {
-  const salePrice = p.discountPrice;
-  const discountRate =
-    salePrice !== undefined && salePrice < p.price
-      ? Math.round((1 - salePrice / p.price) * 100)
-      : 0;
+  const salePrice = priceOf(p);
+  const discountRate = rateOf(p);
   const hasDiscount = discountRate > 0;
-  const soldOut = p.isSoldOut || p.stock === 0;
+  const soldOut = isSoldOut(p);
 
   // 별점 채움 비율 (0 ~ 100%)
   const ratingPercent = Math.max(0, Math.min(100, (p.rating / 5) * 100));

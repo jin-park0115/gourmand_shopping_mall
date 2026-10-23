@@ -1,36 +1,35 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 구르망 프론트엔드 (Next.js 16)
 
-## Getting Started
-
-First, run the development server:
+## 실행
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cd gourmand
+npm install
+copy .env.example .env.local   # (macOS/Linux: cp) 백엔드 주소, 기본 http://localhost:8000
+npm run dev                    # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+상품 화면은 백엔드 API 에서 데이터를 받아요. 먼저 백엔드를 띄우고 시드를 넣어 주세요 (`backend/README.md`).
+백엔드가 꺼져 있으면 상품 화면은 오류 화면(`app/error.tsx`)을 보여 줘요.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 데이터 흐름
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| 파일 | 역할 |
+| --- | --- |
+| `lib/api.ts` | 백엔드 호출 (`NEXT_PUBLIC_API_URL`), 오류 `{code, message}` → `ApiError` |
+| `lib/products.ts` | `fetchProducts` · `fetchProduct` · `fetchCategoryCounts`, 판매가 · 할인율 같은 계산 |
+| `lib/categories.ts` | 카테고리 6개의 화면 꾸밈 (이름 · 소개 · 대표 사진). 상품이 어느 카테고리인지는 DB 가 정해요 |
+| `data/products.ts` | 옛 정적 데이터. 관리자 화면(SCRUM-36)만 아직 써요 |
 
-## Learn More
+## 렌더링 결정 (SCRUM-24): 상품 페이지는 요청할 때 렌더링
 
-To learn more about Next.js, take a look at the following resources:
+`generateStaticParams` 로 상품 · 나라 · 카테고리 페이지를 빌드 때 미리 만들던 것을 없앴어요.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **재고 · 품절이 주문마다 바뀌어요.** 빌드 때 만든 페이지는 품절을 늦게 보여 줘요.
+- **리뷰를 쓰면 평점이 바로 바뀌어야 해요** (SCRUM-25).
+- **빌드가 백엔드에 묶이지 않아요.** `npm run build` 는 백엔드 없이도 돼요.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+`cacheComponents` 를 켜 둬서, 데이터를 받는 부분은 `<Suspense>` 안에 두고 페이지 틀(배너 · 메뉴)은 미리 만들어져요.
+데이터는 `use cache` 없이 매번 받아요. 상품이 많아져 느려지면 목록에 `use cache` + `cacheLife('minutes')` 를 붙이면 돼요.
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+알아 둘 점: 없는 상품(`/products/999`)은 not-found 화면이 나오지만, 화면을 흘려 보내는(streaming) 방식이라 HTTP 상태는 200이에요.
