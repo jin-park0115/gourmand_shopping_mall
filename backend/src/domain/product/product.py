@@ -4,6 +4,7 @@
 재고는 decrease_stock · increase_stock 으로만 바꿔요 (주문 생성 SCRUM-29 · 취소 SCRUM-35 에서 사용).
 """
 from dataclasses import dataclass
+from enum import StrEnum
 
 from domain.exceptions import BusinessRuleError, InvalidValueError
 
@@ -71,3 +72,29 @@ class Product:
 def _check_quantity(quantity: int) -> None:
     if quantity < 1:
         raise InvalidValueError("수량은 1개 이상이어야 해요.")
+
+
+class ProductSort(StrEnum):
+    """상품 목록 정렬 (프론트 SORT_OPTIONS 의 slug 와 같아요). 어떤 정렬이든 품절 상품은 맨 뒤예요."""
+
+    RECOMMEND = "recommend"  # 검색어가 상품명에 있는 상품 먼저 → 평점 높은 순
+    REVIEW = "review"  # 리뷰 많은 순
+    LOW = "low"  # 판매가 낮은 순
+    HIGH = "high"  # 판매가 높은 순
+    NEW = "new"  # 신상품 먼저 → 최근 등록 순
+
+
+@dataclass(frozen=True)
+class ProductListing:
+    """화면에 보여 줄 상품 + 리뷰 집계 (평점 · 리뷰 수는 review 테이블에서 계산)."""
+
+    product: Product
+    rating: float
+    review_count: int
+
+
+@dataclass(frozen=True)
+class CategorySummary:
+    slug: str
+    name: str
+    product_count: int
