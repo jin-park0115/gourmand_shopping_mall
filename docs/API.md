@@ -262,7 +262,49 @@ Content-Type: application/json
 
 ## B 인증 · 장바구니 · 주문 (윤강)
 
-> 담당자가 채워 주세요. 관련 티켓: SCRUM-18 회원가입 · 로그인, SCRUM-19 로그아웃, SCRUM-27 장바구니, SCRUM-29 · 31 주문
+> 관련 티켓: SCRUM-18 회원가입 · 로그인, SCRUM-19 로그아웃, SCRUM-27 장바구니, SCRUM-29 · 31 주문 (장바구니 · 주문은 추가 예정)
+
+| 메서드 | 경로 | 설명 | 권한 | 성공 | 오류 | 티켓 |
+| --- | --- | --- | --- | --- | --- | --- |
+| POST | `/auth/signup` | 회원가입 | 공개 | 201 | 409 · 422 | SCRUM-18 |
+| POST | `/auth/login` | 로그인 (access token 발급) | 공개 | 200 | 401 · 422 | SCRUM-18 |
+
+### POST /auth/signup
+
+```json
+{ "email": "kim@gourmand.com", "password": "secret-123", "name": "김구르", "phone": "010-1234-5678" }
+```
+
+| 필드 | 규칙 |
+| --- | --- |
+| `email` | 이메일 형식. 소문자로 저장해요 (`Kim@A.com` 과 `kim@a.com` 은 같은 계정) |
+| `password` | 8~64자. argon2 로 해싱해서 저장해요 |
+| `name` | 1~50자 |
+| `phone` | 선택. 숫자와 `-` 9~20자 |
+
+응답 (201): `{ "id", "email", "name", "phone", "role" }` — 가입하면 `role` 은 항상 `customer` 예요.
+
+| 오류 | code | 예 |
+| --- | --- | --- |
+| 409 | `CONFLICT` | "이미 가입된 이메일이에요." |
+| 422 | `VALIDATION_ERROR` | 이메일 형식 · 비밀번호 길이 · 이름 길이 |
+
+### POST /auth/login
+
+OAuth2 password 방식이라 **form** (`application/x-www-form-urlencoded`) 으로 보내요. `username` 칸에 이메일을 넣어요 (Swagger `Authorize` 버튼과 호환).
+
+```
+username=kim@gourmand.com&password=secret-123
+```
+
+응답 (200) — OAuth2 표준이라 이 응답만 snake_case 예요.
+
+```json
+{ "access_token": "eyJ...", "token_type": "bearer", "expires_in": 3600 }
+```
+
+토큰(JWT HS256)에는 `sub`(member_id, 문자열) · `role` · `jti`(토큰 id, 로그아웃 블랙리스트용) · `exp` · `iat` 가 들어 있어요.
+이메일이 없을 때와 비밀번호가 틀렸을 때 모두 같은 401 "이메일 또는 비밀번호가 올바르지 않아요." 예요 (가입 여부가 드러나지 않게).
 
 ## C 관리자 주문 (안중섭)
 
