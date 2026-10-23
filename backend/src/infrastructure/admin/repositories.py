@@ -1,7 +1,7 @@
 """관리자 주문 운영 Repository: ORM 모델 ↔ 도메인 객체 변환, 비동기 조회·저장."""
 from datetime import date, datetime, time, timedelta
 
-from sqlalchemy import ColumnElement, exists, func, or_, select
+from sqlalchemy import ColumnElement, exists, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -16,10 +16,12 @@ from domain.admin.views import (
 )
 from domain.order.status import OrderStatus, StatusChange
 from infrastructure.admin.models import OrderStatusHistoryModel
-from infrastructure.order.models import OrderItemModel, OrderModel
+from infrastructure.order.models import OrderItemModel, OrderModel, PaymentModel
 from infrastructure.product.models import ProductModel
 
 TOP_PRODUCT_LIMIT = 5
+# payment.status 값: 결제완료 · 결제취소 (윤강 합의, SCRUM-29). 결제 쪽 값 정의는 B 영역이라 여기서는 상수 하나만 써요
+PAYMENT_CANCELLED = "결제취소"
 _CANCELLED = OrderStatus.CANCELLED.value
 _BEFORE_SHIPMENT = (OrderStatus.RECEIVED, OrderStatus.PREPARING)
 
@@ -119,6 +121,35 @@ class AdminOrderQueryRepository:
         )
 
 
+class AdminOrderCommandRepository:
+    """관리자 상태 변경용 쓰기 작업. commit 은 응용 서비스가 해요."""
+
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def lock(self, order_id: int) -> OrderModel | None:
+        # 같은 주문을 동시에 바꾸면 두 번째 요청은 첫 번째가 끝날 때까지 기다렸다가 바뀐 상태로 검사돼요
+        return await self.session.scalar(
+            select(OrderModel).where(OrderModel.order_id == order_id).with_for_update().execution_options(populate_existing=True)
+        )
+
+    async def cancel_payment(self, order_id: int) -> None:
+        """주문의 결제 상태를 결제취소로 바꿔요. 결제 행이 없으면 아무것도 하지 않아요."""
+        await self.session.execute(
+            update(PaymentModel).where(PaymentModel.order_id == order_id).values(status=PAYMENT_CANCELLED)
+        )
+
+    async def quantities_by_product(self, order_id: int) -> list[tuple[int, int]]:
+        """주문 상품별 수량 합계 (product_id 오름차순). 재고를 늘 같은 순서로 잠가서 데드락을 피해요."""
+        rows = await self.session.execute(
+            select(OrderItemModel.product_id, func.sum(OrderItemModel.quantity))
+            .where(OrderItemModel.order_id == order_id)
+            .group_by(OrderItemModel.product_id)
+            .order_by(OrderItemModel.product_id)
+        )
+        return [(product_id, int(quantity)) for product_id, quantity in rows.all()]
+
+
 def _with_lines(stmt):
     return stmt.options(selectinload(OrderModel.items).selectinload(OrderItemModel.product))
 
@@ -184,10 +215,9 @@ def _to_view(row: OrderModel, history: list[StatusChange] | None = None) -> Admi
             # relationship 에 순서가 없어서, 담긴 순서(order_item_id)로 고정해요
             for item in sorted(row.items, key=lambda i: i.order_item_id)
         ],
-        # orders 의 택배사 · 운송장 · 메모 컬럼은 SCRUM-35 리비전에서 추가돼요. 그 전에는 None
-        courier=getattr(row, "courier", None),
-        tracking_no=getattr(row, "tracking_no", None),
-        admin_note=getattr(row, "admin_note", None),
+        courier=row.courier,
+        tracking_no=row.tracking_no,
+        admin_note=row.admin_note,
         history=history,
     )
 
