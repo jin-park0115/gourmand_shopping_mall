@@ -4,7 +4,7 @@ JSON 필드 이름은 camelCase (프론트 lib/orderStorage.ts 타입과 같게)
 """
 from datetime import datetime, timedelta, timezone
 
-from pydantic import field_serializer
+from pydantic import Field, field_serializer
 
 from domain.admin.views import AdminOrderView, OrderSummary
 from domain.admin.views import Page as ViewPage
@@ -17,6 +17,15 @@ KST = timezone(timedelta(hours=9))
 def _kst(value: datetime) -> str:
     # DB 의 ordered_at · changed_at 은 시간대 없이 KST 로 저장돼 있어요
     return (value if value.tzinfo else value.replace(tzinfo=KST)).isoformat()
+
+
+class StatusChangeIn(CamelModel):
+    """PATCH /admin/orders/{orderId}/status 본문. 택배사 · 운송장 · 사유가 필요한지는 도메인이 검사해요."""
+
+    status: OrderStatus
+    courier: str | None = Field(None, max_length=20)
+    tracking_no: str | None = Field(None, max_length=30)
+    note: str | None = Field(None, max_length=300)
 
 
 class BuyerOut(CamelModel):
