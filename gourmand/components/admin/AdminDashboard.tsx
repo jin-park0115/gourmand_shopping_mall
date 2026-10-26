@@ -177,8 +177,16 @@ function Dashboard({ member, onLogout }: { member: Member; onLogout: () => Promi
   // 상태 바꾸기 (PATCH /admin/orders/{orderId}/status). 실패하면 OrderDetail 이 서버 메시지를 보여 줘요
   async function change(body: StatusChange) {
     if (!detail) return;
-    setDetail(await changeOrderStatus(detail.orderId, body));
-    setVersion((v) => v + 1);
+    const orderId = detail.orderId;
+    try {
+      setDetail(await changeOrderStatus(orderId, body));
+    } catch (e) {
+      // 409 = 다른 관리자가 먼저 바꿨어요. 화면이 옛 상태로 남지 않게 지금 상태를 다시 불러와요
+      if (e instanceof ApiError && e.status === 409) await fetchAdminOrder(orderId).then(setDetail, () => undefined);
+      throw e;
+    } finally {
+      setVersion((v) => v + 1);
+    }
   }
 
   if (!list || !summary || !loadedAt) {
@@ -443,7 +451,8 @@ function OrderDetail({ order: o, onChange }: { order: AdminOrder; onChange: (bod
       setTrackingNo("");
       setNote("");
     } catch (e) {
-      setError(errorText(e));
+      const stale = e instanceof ApiError && e.status === 409;
+      setError(stale ? `${errorText(e)} 다른 관리자가 먼저 바꿨을 수 있어서 지금 상태를 다시 불러왔어요.` : errorText(e));
     } finally {
       setBusy(false);
     }
