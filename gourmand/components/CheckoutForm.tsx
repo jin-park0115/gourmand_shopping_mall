@@ -50,7 +50,7 @@ const inputClass =
 
 export default function CheckoutForm() {
   const router = useRouter();
-  const { items, hydrated, totalCount, totalPrice, clearCart } = useCart();
+  const { items, hydrated, totalCount, totalPrice, clearCart, orderable } = useCart();
   const [form, setForm] = useState<OrderInput>(INITIAL);
   const [errors, setErrors] = useState<Errors>({});
   const [submitted, setSubmitted] = useState(false);
@@ -76,6 +76,21 @@ export default function CheckoutForm() {
           className="mt-4 inline-block rounded-lg bg-brand px-5 py-2.5 font-semibold text-white transition hover:bg-brand-dark"
         >
           쇼핑하러 가기
+        </Link>
+      </div>
+    );
+  }
+
+  // 주소창으로 바로 들어와도 품절 · 재고 초과 상품은 주문하지 못하게 (서버 검증은 주문 API SCRUM-29)
+  if (!orderable && !submitted) {
+    return (
+      <div className="py-20 text-center">
+        <p className="text-gray-600">품절됐거나 재고보다 많이 담은 상품이 있어요. 장바구니에서 정리해 주세요.</p>
+        <Link
+          href="/cart"
+          className="mt-4 inline-block rounded-lg bg-brand px-5 py-2.5 font-semibold text-white transition hover:bg-brand-dark"
+        >
+          장바구니로 가기
         </Link>
       </div>
     );

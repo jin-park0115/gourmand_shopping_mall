@@ -15,6 +15,9 @@ export default function CartView() {
         setQuantity,
         removeItem,
         clearCart,
+        loadFailed,
+        reload,
+        orderable,
     } = useCart();
     const { member } = useAuth();
     const [error, setError] = useState<string | null>(null);
@@ -36,6 +39,21 @@ export default function CartView() {
     // 로그인 확인 · 서버에서 불러오기 전에는 빈 장바구니로 깜빡이지 않게 대기
     if (!hydrated) {
         return <p className="mt-6 text-sm text-gray-500">장바구니를 불러오는 중이에요…</p>;
+    }
+
+    if (loadFailed) {
+        return (
+            <div className="mt-8 rounded-xl border border-gray-200 py-16 text-center">
+                <p className="text-gray-600">장바구니를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.</p>
+                <button
+                    type="button"
+                    onClick={reload}
+                    className="mt-4 inline-block rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-dark"
+                >
+                    다시 불러오기
+                </button>
+            </div>
+        );
     }
 
     if (items.length === 0) {
@@ -95,7 +113,7 @@ export default function CartView() {
                                         onClick={() => run(() => removeItem(item.id))}
                                         disabled={busy}
                                         aria-label={`${item.name} 삭제`}
-                                        className="shrink-0 text-sm text-gray-400 hover:text-gray-900"
+                                        className="shrink-0 text-sm text-gray-400 hover:text-gray-900 disabled:text-gray-200"
                                     >
                                         삭제
                                     </button>
@@ -106,8 +124,9 @@ export default function CartView() {
                                     <div className="flex items-center rounded-lg border border-gray-300 text-sm">
                                         <button
                                             type="button"
-                                            onClick={() => run(() => setQuantity(item.id, item.quantity - 1))}
-                                            disabled={busy || item.quantity <= 1}
+                                            // 재고가 줄었으면 한 번에 재고만큼으로 (5개 담았는데 재고 2개 → 2개). 한 개씩 줄이면 4 · 3개도 재고 초과라 거절돼요
+                                            onClick={() => run(() => setQuantity(item.id, Math.min(item.quantity - 1, item.stock)))}
+                                            disabled={busy || item.quantity <= 1 || item.isSoldOut}
                                             aria-label="수량 줄이기"
                                             className="px-3 py-1.5 disabled:text-gray-300"
                                         >
@@ -167,12 +186,27 @@ export default function CartView() {
                         {totalPrice.toLocaleString()}원
                     </span>
                 </div>
-                <Link
-                    href="/checkout"
-                    className="mt-5 block w-full rounded-lg bg-brand py-3 text-center font-semibold text-white transition hover:bg-brand-dark"
-                >
-                    주문하기
-                </Link>
+                {orderable ? (
+                    <Link
+                        href="/checkout"
+                        className="mt-5 block w-full rounded-lg bg-brand py-3 text-center font-semibold text-white transition hover:bg-brand-dark"
+                    >
+                        주문하기
+                    </Link>
+                ) : (
+                    <>
+                        <button
+                            type="button"
+                            disabled
+                            className="mt-5 block w-full rounded-lg bg-gray-300 py-3 text-center font-semibold text-white"
+                        >
+                            주문하기
+                        </button>
+                        <p className="mt-2 text-xs text-red-500">
+                            품절됐거나 재고보다 많이 담은 상품을 정리하면 주문할 수 있어요.
+                        </p>
+                    </>
+                )}
             </aside>
         </div>
     );
