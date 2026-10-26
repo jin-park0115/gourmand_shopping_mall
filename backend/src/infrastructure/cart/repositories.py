@@ -28,6 +28,19 @@ class CartRepository:
         product_of = {listing.product.id: listing.product for listing in listings}
         return Cart(lines=[CartLine(product_of[pid], qty) for pid, qty in rows if pid in product_of])
 
+    async def lock_lines(self, member_id: int) -> list[tuple[int, int]]:
+        """주문용: 장바구니 행을 잠그고 (상품 번호, 수량)을 상품 번호 순으로 돌려줘요.
+
+        주문하는 동안 다른 탭에서 담기 · 수량 변경을 해도 주문이 끝날 때까지 기다려요.
+        """
+        rows = await self.session.execute(
+            select(CartItemModel.product_id, CartItemModel.quantity)
+            .where(CartItemModel.member_id == member_id)
+            .order_by(CartItemModel.product_id)
+            .with_for_update()
+        )
+        return [(pid, qty) for pid, qty in rows.all()]
+
     async def get_quantity(self, member_id: int, product_id: int) -> int | None:
         """담겨 있지 않으면 None. 같은 상품을 동시에 담아도 합산이 꼬이지 않게 행을 잠가요."""
         return await self.session.scalar(
