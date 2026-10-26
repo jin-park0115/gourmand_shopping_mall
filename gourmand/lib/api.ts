@@ -45,6 +45,13 @@ export function loginHref(next?: string) {
   return next && next !== "/" ? `/login?next=${encodeURIComponent(next)}` : "/login";
 }
 
+// 비회원이 장바구니를 쓰려고 할 때: 로그인이 필요하다고 알리고, 확인하면 로그인 화면으로 (취소하면 그대로)
+export function askLogin(next: string) {
+  if (confirm("장바구니는 로그인한 회원만 쓸 수 있어요.\n로그인 화면으로 이동할까요?")) {
+    location.assign(loginHref(next));
+  }
+}
+
 export async function api<T>(
   path: string,
   init?: RequestInit,

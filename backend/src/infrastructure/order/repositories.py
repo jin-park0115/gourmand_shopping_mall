@@ -49,6 +49,20 @@ class OrderRepository:
         """주문한 회원 번호. 없는 주문이면 None (404 와 남의 주문 403 을 구분하려고)."""
         return await self.session.scalar(select(OrderModel.member_id).where(OrderModel.order_id == order_id))
 
+    async def has_delivered(self, member_id: int, product_id: int) -> bool:
+        """이 회원의 배송완료 주문에 이 상품이 있는지 (리뷰 작성 조건)."""
+        stmt = (
+            select(OrderItemModel.order_item_id)
+            .join(OrderModel, OrderModel.order_id == OrderItemModel.order_id)
+            .where(
+                OrderModel.member_id == member_id,
+                OrderModel.status == OrderStatus.DELIVERED.value,
+                OrderItemModel.product_id == product_id,
+            )
+            .limit(1)
+        )
+        return await self.session.scalar(stmt) is not None
+
     async def get(self, order_id: int) -> Order | None:
         row = await self.session.scalar(_with_details(select(OrderModel).where(OrderModel.order_id == order_id)))
         return _to_domain(row) if row else None

@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import CartBadge from '@/components/CartBadge';
+import { useAuth } from '@/components/AuthProvider';
+import { askLogin } from '@/lib/api';
 
 // 아이콘 공통 모양 (5개 모두 같은 굵기·크기의 선 아이콘으로 통일, 색은 글자색을 따라감)
 function TabIcon({ children }: { children: React.ReactNode }) {
@@ -83,6 +85,7 @@ const tabs = [
 // 모바일 하단 탭 메뉴 (lg 미만 화면에서만 보임)
 export default function MobileTabBar() {
   const pathname = usePathname(); // 지금 보고 있는 페이지 주소 (예: '/', '/cart')
+  const { member, ready } = useAuth();
 
   return (
     <nav
@@ -98,6 +101,13 @@ export default function MobileTabBar() {
               key={tab.label}
               href={tab.href}
               aria-current={active ? 'page' : undefined}
+              onClick={(e) => {
+                // 비회원이 장바구니 탭을 누르면 로그인 안내 창을 띄워요
+                if (tab.href === '/cart' && ready && !member) {
+                  e.preventDefault();
+                  askLogin('/cart');
+                }
+              }}
               className={`flex flex-1 flex-col items-center justify-center gap-1 text-[11px] tracking-tight transition-colors ${
                 active ? 'font-bold text-brand' : 'font-medium text-gray-500 active:text-brand'
               }`}

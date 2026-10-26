@@ -5,7 +5,7 @@ import { Suspense } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import CartBadge from "@/components/CartBadge";
 import { useAuth } from "@/components/AuthProvider";
-import { loginHref } from "@/lib/api";
+import { askLogin, loginHref } from "@/lib/api";
 
 // 로그인 · 로그아웃 (토큰 확인 전에는 아무것도 안 보여서 깜빡이지 않아요)
 // 지금 주소(usePathname)를 읽어서 Suspense 안에 둬요 (Next 16 cacheComponents 규칙)
@@ -137,6 +137,7 @@ function ActiveCountryLinks() {
 }
 
 export default function Header() {
+  const { member, ready } = useAuth();
   return (
     <header data-shop-chrome className="sticky top-0 z-50 border-b border-gray-200 bg-white">
       {/* PC 헤더 */}
@@ -170,6 +171,13 @@ export default function Header() {
         <div className="flex shrink-0 items-center gap-5 whitespace-nowrap">
           <Link
             href="/cart"
+            onClick={(e) => {
+              // 비회원이면 장바구니 화면 대신 로그인 안내 창을 띄워요
+              if (ready && !member) {
+                e.preventDefault();
+                askLogin("/cart");
+              }
+            }}
             className="flex flex-col items-center gap-1 text-[13px] font-medium text-gray-700 transition hover:text-brand"
           >
             <span className="relative">

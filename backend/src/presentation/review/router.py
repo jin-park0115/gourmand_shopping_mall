@@ -6,7 +6,7 @@ from application.review.service import ReviewService
 from database import get_session
 from domain.auth.member import CurrentUser
 from presentation.auth.dependencies import get_current_user, get_optional_user
-from presentation.review.schemas import ReviewCreateIn, ReviewOut, ReviewUpdateIn
+from presentation.review.schemas import ReviewCreateIn, ReviewOut, ReviewUpdateIn, ReviewWritableOut
 from presentation.schemas import Page
 
 router = APIRouter(tags=["review"])
@@ -27,6 +27,16 @@ async def list_reviews(
     reviews, total = await service.list(product_id, page=page, size=size)
     viewer = user.member_id if user else None
     return Page.of([ReviewOut.of(r, viewer) for r in reviews], total, page, size)
+
+
+@router.get("/products/{product_id}/reviews/writable", response_model=ReviewWritableOut)
+async def review_writable(
+    product_id: int = Path(ge=1),
+    user: CurrentUser = Depends(get_current_user),
+    service: ReviewService = Depends(get_review_service),
+) -> ReviewWritableOut:
+    message = await service.writable_message(product_id, user.member_id)
+    return ReviewWritableOut(can_write=message is None, message=message)
 
 
 @router.post("/products/{product_id}/reviews", response_model=ReviewOut, status_code=status.HTTP_201_CREATED)

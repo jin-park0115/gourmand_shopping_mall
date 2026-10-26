@@ -60,3 +60,10 @@ class ReviewOut(CamelModel):
             updated_at=review.updated_at,
             is_mine=viewer_id is not None and review.member_id == viewer_id,
         )
+
+
+class ReviewWritableOut(CamelModel):
+    """작성 폼을 보여 줄지. 못 쓰면 message 에 이유 (예: 배송완료된 주문의 상품만 …)."""
+
+    can_write: bool
+    message: str | None

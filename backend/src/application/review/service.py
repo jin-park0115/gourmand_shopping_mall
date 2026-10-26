@@ -1,8 +1,9 @@
 """리뷰 응용 서비스: Repository 조회 → 도메인 메서드 실행 → 저장 → commit/rollback."""
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from domain.exceptions import NotFoundError
-from domain.review.review import Review, validate_content, validate_rating
+from domain.exceptions import NotFoundError, PermissionDeniedError
+from domain.review.review import Review, check_purchased, validate_content, validate_rating
+from infrastructure.order.repositories import OrderRepository
 from infrastructure.product.repositories import ProductRepository
 from infrastructure.review.repositories import ReviewRepository
 
@@ -12,13 +13,24 @@ class ReviewService:
         self.session = session
         self.reviews = ReviewRepository(session)
         self.products = ProductRepository(session)
+        self.orders = OrderRepository(session)
 
     async def list(self, product_id: int, *, page: int, size: int) -> tuple[list[Review], int]:
         await self._ensure_product(product_id)
         return await self.reviews.list_by_product(product_id, page=page, size=size)
 
+    async def writable_message(self, product_id: int, member_id: int) -> str | None:
+        """리뷰를 쓸 수 있으면 None, 아니면 화면에 보여 줄 이유 (작성 폼을 미리 숨기려고)."""
+        await self._ensure_product(product_id)
+        try:
+            check_purchased(await self.orders.has_delivered(member_id, product_id))
+        except PermissionDeniedError as e:
+            return e.message
+        return None
+
     async def create(self, product_id: int, member_id: int, *, rating: int, content: str) -> Review:
         await self._ensure_product(product_id)
+        check_purchased(await self.orders.has_delivered(member_id, product_id))
         review = await self.reviews.add(
             product_id=product_id, member_id=member_id, rating=validate_rating(rating), content=validate_content(content)
         )
