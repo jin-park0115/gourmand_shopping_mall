@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from application.cart.service import CartService
 from database import get_session
 from domain.auth.member import CurrentUser
-from presentation.auth.dependencies import get_current_user
+from presentation.auth.dependencies import get_current_user, require_customer
 from presentation.cart.schemas import CartAddIn, CartOut, CartQuantityIn
 
 router = APIRouter(prefix="/cart", tags=["cart"])
@@ -27,9 +27,9 @@ async def get_cart(
 
 @router.post("/items", response_model=CartOut)
 async def add_item(
-    body: CartAddIn, user: CurrentUser = Depends(get_current_user), service: CartService = Depends(get_cart_service)
+    body: CartAddIn, user: CurrentUser = Depends(require_customer), service: CartService = Depends(get_cart_service)
 ) -> CartOut:
-    """같은 상품을 다시 담으면 수량을 합쳐요."""
+    """같은 상품을 다시 담으면 수량을 합쳐요. 관리자 계정은 403."""
     return CartOut.of(await service.add(user.member_id, body.product_id, body.quantity))
 
 

@@ -16,19 +16,6 @@ export const ORDER_STATUSES = [
   "주문취소",
 ] as const;
 
-const SHIPPING_KEY = "gourmand-shipping"; // 저장된 배송 정보
-
-export function saveShipping(input: OrderInput) {
-  try {
-    localStorage.setItem(SHIPPING_KEY, JSON.stringify(input));
-  } catch {}
-}
-
-// 화면이 렌더링 중에 읽을 수 있게 저장된 문자열 그대로 (useSyncExternalStore 용, 값이 같으면 같은 문자열)
-export function savedShippingSnapshot(): string | null {
-  try {
-    return localStorage.getItem(SHIPPING_KEY);
-  } catch {
-    return null;
-  }
-}
+// 예전에 이 브라우저(localStorage)에 저장하던 배송 정보 키. 같은 PC 의 다른 회원에게 보여서 계정(서버)으로 옮겼고,
+// 남아 있는 값은 CartProvider 가 지워요
+export const LEGACY_SHIPPING_KEY = "gourmand-shipping";

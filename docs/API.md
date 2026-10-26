@@ -283,11 +283,12 @@ Content-Type: application/json
 | POST | `/auth/logout` | 로그아웃 (지금 토큰을 블랙리스트에) | 회원 | 204 | 401 | SCRUM-19 |
 | GET | `/auth/me` | 내 정보 (토큰이 아직 유효한지 확인용) | 회원 | 200 | 401 | SCRUM-19 |
 | GET | `/cart` | 내 장바구니 | 회원 | 200 | 401 | SCRUM-27 |
-| POST | `/cart/items` | 담기 (같은 상품이면 수량 합산) | 회원 | 200 | 401 · 404 · 409 · 422 | SCRUM-27 |
+| POST | `/cart/items` | 담기 (같은 상품이면 수량 합산) | 고객 (관리자 403) | 200 | 401 · 403 · 404 · 409 · 422 | SCRUM-27 |
 | PATCH | `/cart/items/{productId}` | 수량 변경 | 회원 | 200 | 401 · 404 · 409 · 422 | SCRUM-27 |
 | DELETE | `/cart/items/{productId}` | 상품 빼기 | 회원 | 200 | 401 · 404 | SCRUM-27 |
 | DELETE | `/cart` | 전체 비우기 | 회원 | 200 | 401 | SCRUM-27 |
-| POST | `/orders` | 주문하기 (내 장바구니 전체) | 회원 | 201 | 401 · 404 · 409 · 422 | SCRUM-29 |
+| POST | `/orders` | 주문하기 (내 장바구니 전체) | 고객 (관리자 403) | 201 | 401 · 403 · 404 · 409 · 422 | SCRUM-29 |
+| GET | `/orders/saved-address` | 내 계정에 저장된 배송지 (없으면 `null`) | 회원 | 200 | 401 | SCRUM-30 |
 | GET | `/orders` | 내 주문 목록 (상태 · 기간 · 페이지) | 회원 | 200 | 401 · 422 | SCRUM-31 |
 | GET | `/orders/{orderId}` | 내 주문 하나 (주문 완료 화면) | 회원 (본인) | 200 | 401 · 403 · 404 | SCRUM-29 · 31 |
 | POST | `/orders/{orderId}/cancel` | 고객 취소 (접수 · 상품준비중만) | 회원 (본인) | 200 | 401 · 403 · 404 · 409 | SCRUM-31 |
@@ -390,7 +391,7 @@ Swagger(`/docs`) 오른쪽 위 `Authorize` 에 이메일 · 비밀번호를 넣�
 `POST /orders` 는 **배송 정보만** 받아요. 주문 상품 · 수량 · 가격은 서버 장바구니에서 가져와서, 화면이 보낸 가격을 믿지 않아요.
 
 ```json
-{ "recipient": "김구르", "phone": "010-1234-5678", "zipcode": "06236", "address1": "서울 강남구 테헤란로 123", "address2": "4층" }
+{ "recipient": "김구르", "phone": "010-1234-5678", "zipcode": "06236", "address1": "서울 강남구 테헤란로 123", "address2": "4층", "saveAddress": true }
 ```
 
 | 필드 | 규칙 (프론트 CheckoutForm 과 같아요) |
@@ -399,6 +400,9 @@ Swagger(`/docs`) 오른쪽 위 `Authorize` 에 이메일 · 비밀번호를 넣�
 | `phone` | 휴대폰 `01X-XXXX-XXXX` (`-` 생략 가능) |
 | `zipcode` | 숫자 5자리 |
 | `address1` · `address2` | 주소 (필수) · 상세 주소 (선택, 비우면 `null`) |
+| `saveAddress` | 선택 (기본 `false`). `true` 면 이 배송 정보를 **내 계정**(`address` 테이블, 회원당 한 줄)에 저장해서 `GET /orders/saved-address` 로 불러와요. 주문과 같은 트랜잭션이라 주문이 실패하면 저장되지 않아요 |
+
+관리자 계정은 장바구니 담기 · 주문을 할 수 없어요: 403 "관리자 계정으로는 장바구니 담기 · 주문을 할 수 없어요. 고객 계정으로 로그인해 주세요." (`require_customer`)
 
 한 트랜잭션으로 처리해요: 장바구니 잠금 → 상품을 상품 번호 순으로 잠그고 재고 차감 → 주문 · 주문 상품(주문 당시 판매가) · 결제(`결제완료`, 결제 연동이 없어 바로 완료) 저장 → 상태 이력 첫 줄(`null → 접수`) → 장바구니 비우기.
 **하나라도 실패하면 전부 되돌려요** (앞 상품 재고도 그대로, 장바구니도 그대로).
@@ -410,10 +414,12 @@ Swagger(`/docs`) 오른쪽 위 `Authorize` 에 이메일 · 비밀번호를 넣�
   "orderId": 12, "status": "접수", "orderedAt": "2026-10-26T14:03:00", "totalPrice": 13800,
   "recipient": "김구르", "phone": "010-1234-5678", "zipcode": "06236", "address1": "서울 강남구 테헤란로 123", "address2": "4층",
   "items": [{ "productId": 6, "name": "로투스 비스코프", "imageUrl": "/images/6.png", "unitPrice": 3900, "quantity": 2, "subtotal": 7800 }],
-  "payment": { "method": "카드", "amount": 13800, "status": "결제완료", "paidAt": "2026-10-26T14:03:00" }
+  "payment": { "method": "카드", "amount": 13800, "status": "결제완료", "paidAt": "2026-10-26T14:03:00" },
+  "courier": null, "trackingNo": null
 }
 ```
 
+`courier` · `trackingNo` 는 관리자가 배송중으로 바꿀 때 넣은 택배사 · 운송장 번호예요 (출고 전에는 `null`). 마이페이지에 보여요.
 `orderedAt` · `paidAt` 은 KST (시간대 표시 없음, 관리자 화면과 같은 기준). 없는 주문은 404, **남의 주문은 403** "본인 주문만 볼 수 있어요." (SCRUM-31 Jira 규칙)
 
 | 오류 | code | 예 |

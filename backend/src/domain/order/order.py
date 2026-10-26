@@ -77,6 +77,8 @@ class Order:
     shipping: ShippingInfo
     lines: list[OrderLine]
     payment: Payment | None
+    courier: str | None = None  # 관리자가 배송중으로 바꿀 때 넣은 택배사 · 운송장 (고객도 봐요)
+    tracking_no: str | None = None
 
     @property
     def total_price(self) -> int:

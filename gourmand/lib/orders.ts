@@ -23,9 +23,12 @@ export interface Order {
   address2: string | null;
   items: OrderItem[];
   payment: { method: string; amount: number; status: string; paidAt: string | null } | null;
+  courier: string | null; // 관리자가 배송중으로 바꾸면 택배사 · 운송장 번호가 와요 (출고 전에는 null)
+  trackingNo: string | null;
 }
 
-export function placeOrder(input: OrderInput) {
+// saveAddress: 이 배송 정보를 내 계정에 저장해서 다음 주문서에서 불러와요 (브라우저가 아니라 서버에 저장)
+export function placeOrder(input: OrderInput, saveAddress: boolean) {
   return api<Order>("/orders", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -35,8 +38,23 @@ export function placeOrder(input: OrderInput) {
       zipcode: input.zipcode,
       address1: input.address1,
       address2: input.address2 || null,
+      saveAddress,
     }),
   });
+}
+
+// 내 계정에 저장된 배송지 (없으면 null). 다른 회원 · 다른 브라우저와 섞이지 않아요
+export interface SavedAddress {
+  recipient: string;
+  phone: string;
+  zipcode: string;
+  address1: string;
+  address2: string | null;
+}
+
+export async function fetchSavedAddress(): Promise<OrderInput | null> {
+  const s = await api<SavedAddress | null>("/orders/saved-address");
+  return s && { buyerName: s.recipient, phone: s.phone, zipcode: s.zipcode, address1: s.address1, address2: s.address2 ?? "" };
 }
 
 export const fetchOrder = (orderId: number) => api<Order>(`/orders/${orderId}`);
