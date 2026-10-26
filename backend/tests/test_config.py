@@ -20,3 +20,8 @@ from core.config import Settings
 )
 def test_database_url_is_normalized_for_asyncpg(given: str, expected: str) -> None:
     assert Settings(database_url=given).database_url == expected
+
+
+def test_cors_origins_ignore_spaces_and_trailing_slash() -> None:
+    settings = Settings(cors_origins=" https://gourmand.vercel.app/ , http://localhost:3000,")
+    assert settings.cors_origin_list == ["https://gourmand.vercel.app", "http://localhost:3000"]

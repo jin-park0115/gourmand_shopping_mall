@@ -6,6 +6,13 @@
 
 인수 팀: **안중섭**(팀장, 관리자 주문) · **박진**(상품 · 리뷰) · **윤강**(장바구니 · 주문)
 
+| 배포 | 주소 |
+|---|---|
+| 쇼핑몰 | https://gourmand-shopping-mall.vercel.app |
+| API (Swagger) | https://gourmand-api.onrender.com/docs |
+
+> 무료 서버라 한동안 요청이 없으면 잠들어요. 첫 화면이 오류로 보이면 30~50초 뒤 새로고침해 주세요.
+
 <br>
 
 ## 목차
@@ -143,6 +150,42 @@ npm run dev
 - 고객: `.env`의 `CUSTOMER_EMAIL` / `CUSTOMER_PASSWORD`, 또는 `/signup`에서 새로 가입
 - 시드 리뷰 작성자(`reviewer1~5@seed.test`)는 로그인할 수 없어요.
 
+### 배포 (운영)
+
+```mermaid
+flowchart LR
+    user["브라우저"] --> vercel["Vercel<br>Next.js (gourmand/)"]
+    user -- "로그인 · 리뷰 · 장바구니 (CORS)" --> render
+    vercel -- "상품 화면 (서버 렌더링)" --> render["Render<br>FastAPI (backend/)"]
+    render --> neon[("Neon PostgreSQL<br>Singapore")]
+    gha["GitHub Actions<br>10분마다 /health"] -.-> render
+```
+
+| 서비스 | 설정 | 배포되는 때 |
+|---|---|---|
+| **Vercel** (프론트) | Root Directory `gourmand`, Production Branch `main`, 환경변수 `NEXT_PUBLIC_API_URL` | `main`에 push |
+| **Render** (백엔드) | 저장소의 `render.yaml`(Blueprint): `uv sync` → 시작할 때 `alembic upgrade head` → uvicorn, `/health` 체크, Singapore | `main`에 push |
+| **Neon** (DB) | `production` 브랜치, `aws-ap-southeast-1` | — |
+
+**배포 흐름:** 기능은 `develop`에 PR로 모으고, 배포할 때 `develop` → `main` 릴리스 PR을 머지해요. 그러면 Vercel과 Render가 함께 배포돼요. DB 마이그레이션은 Render가 시작할 때 자동으로 적용돼요.
+
+**Render 환경변수**
+
+| 이름 | 값 |
+|---|---|
+| `DATABASE_URL` | Neon 콘솔의 Connection string(Direct, `-pooler` 아닌 것)을 그대로. `postgresql://…?sslmode=require&channel_binding=require`도 asyncpg 형식으로 자동 변환돼요 |
+| `CORS_ORIGINS` | `https://gourmand-shopping-mall.vercel.app,http://localhost:3000` (끝 `/`는 있어도 무시) |
+| `JWT_SECRET_KEY` | Render가 자동 생성 (`render.yaml`의 `generateValue`) |
+
+**운영 관리자 계정:** 운영 DB에 한 번 시드를 실행해서 만들어요. 가입 API로는 관리자가 될 수 없어요.
+```bash
+cd backend
+DATABASE_URL="<Neon 주소>" ADMIN_EMAIL="admin@gourmand.com" ADMIN_PASSWORD="<새 비밀번호>" uv run python scripts/seed.py
+```
+같은 명령을 다시 실행하면 비밀번호를 바꿀 수 있어요. 시드는 시연용 리뷰 150개도 함께 넣어요.
+
+**잠들기 대비:** Render 무료 서버는 15분 동안 요청이 없으면 잠들어서, 깨어날 때 30~50초가 걸려요. `.github/workflows/keep-warm.yml`이 10분마다 `/health`를 불러 깨워 둬요. GitHub 예약 실행은 몇 분씩 늦을 수 있어서, **시연 직전에는 API 주소를 한 번 직접 열어 두세요.**
+
 <br>
 
 ## 4. 구조
@@ -278,7 +321,7 @@ Jira 키 전체 표: [docs/jira-keys.md](docs/jira-keys.md)
 | 배송지 기억 | ✅ API | 주문할 때 고르면 내 계정에 저장 (`GET /orders/saved-address`), 다른 회원 · 다른 브라우저와 섞이지 않아요 |
 | PICK 큐레이션 | 정적 데이터 (의도) | `data/picks.ts`, 팀원 추천 목록이라 DB에 두지 않았어요 |
 | 결제 · 찜 · 리뷰 사진 | ❌ 하지 않음 | 범위 밖 |
-| 배포 (Vercel 등) | ❌ 하지 않음 | 로컬 실행만 |
+| 배포 | ✅ Vercel · Render · Neon | [배포 (운영)](#배포-운영) 참고. 무료 플랜이라 잠들 수 있어요 |
 
 <br>
 
