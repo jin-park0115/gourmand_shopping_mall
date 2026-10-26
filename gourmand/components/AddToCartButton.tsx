@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useCart } from "@/components/CartProvider";
+import { cartErrorMessage, useCart } from "@/components/CartProvider";
 import { Product } from "@/types/product";
-import { isSoldOut, salePrice } from "@/lib/products";
+import { isSoldOut } from "@/lib/products";
 
 // 장바구니 아이콘
 function CartIcon() {
@@ -47,23 +47,28 @@ function CheckIcon() {
 export default function AddToCartButton({ p }: { p: Product }) {
   const { addItem } = useCart();
   const [added, setAdded] = useState(false);
-
-  const soldOut = isSoldOut(p);
-  const price = salePrice(p);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   // 품절이면 버튼을 보여주지 않음 (이미지 위 '품절' 표시로 충분)
-  if (soldOut) return null;
+  if (isSoldOut(p)) return null;
 
-  function handleClick() {
-    addItem({
-      id: p.id,
-      name: p.name,
-      imageUrl: p.imageUrl,
-      price,
-      stock: p.stock,
-    });
-    setAdded(true);
-    setTimeout(() => setAdded(false), 1500);
+  async function handleClick() {
+    setBusy(true);
+    setError(null);
+    try {
+      // 로그인하지 않았으면 로그인 화면으로 이동해요 (false)
+      if (await addItem(p.id)) {
+        setAdded(true);
+        setTimeout(() => setAdded(false), 1500);
+      }
+    } catch (e) {
+      // 예: 재고만큼 이미 담았을 때 서버가 알려 주는 문구
+      setError(cartErrorMessage(e));
+      setTimeout(() => setError(null), 2500);
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -71,16 +76,17 @@ export default function AddToCartButton({ p }: { p: Product }) {
       {/* 담은 직후 잠깐 보이는 말풍선 (화면 읽기 프로그램에도 안내) */}
       <span
         aria-live="polite"
-        className={`rounded-full bg-brand px-2.5 py-1 text-xs font-semibold text-white shadow transition-opacity duration-200 ${
-          added ? "opacity-100" : "pointer-events-none opacity-0"
-        }`}
+        className={`max-w-44 rounded-full px-2.5 py-1 text-xs font-semibold text-white shadow transition-opacity duration-200 ${
+          error ? "bg-red-500" : "bg-brand"
+        } ${added || error ? "opacity-100" : "pointer-events-none opacity-0"}`}
       >
-        {added ? "담았어요" : ""}
+        {error ?? (added ? "담았어요" : "")}
       </span>
 
       <button
         type="button"
         onClick={handleClick}
+        disabled={busy}
         aria-label={`${p.name} 장바구니 담기`}
         title="장바구니 담기"
         className={`flex h-10 w-10 items-center justify-center rounded-full border shadow-md transition active:scale-95 ${
