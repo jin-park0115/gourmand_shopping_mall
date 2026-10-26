@@ -20,7 +20,8 @@ npm run dev                    # http://localhost:3000
 | `lib/auth.ts` · `components/AuthProvider.tsx` | 회원가입 · 로그인 · 로그아웃 · 내 정보, 화면 전체의 로그인 상태 (`useAuth()`) |
 | `lib/products.ts` | `fetchProducts` · `fetchProduct` · `fetchCategoryCounts`, 판매가 · 할인율 같은 계산 |
 | `lib/categories.ts` | 카테고리 6개의 화면 꾸밈 (이름 · 소개 · 대표 사진). 상품이 어느 카테고리인지는 DB 가 정해요 |
-| `data/products.ts` | 옛 정적 데이터. 관리자 화면(SCRUM-36)만 아직 써요 |
+| `lib/adminOrders.ts` | 관리자 주문 API (`/admin/orders` 목록 · 요약 · 상세 · 상태 변경, SCRUM-36). 관리자 토큰이 있어야 해요 |
+| `data/products.ts` | 옛 정적 데이터. 화면은 더 안 쓰고, 상품 내보내기 · 검사 스크립트(`scripts/`)만 써요 |
 
 ## 렌더링 결정 (SCRUM-24): 상품 페이지는 요청할 때 렌더링
 
