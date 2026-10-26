@@ -24,6 +24,12 @@ export const fetchReviews = (productId: number, page: number) =>
     redirectOn401: false,
   });
 
+// 리뷰는 배송완료된 주문으로 받은 상품만 쓸 수 있어요. 못 쓰면 message 에 이유가 와요 (로그인 필요)
+export const fetchReviewWritable = (productId: number) =>
+  api<{ canWrite: boolean; message: string | null }>(`/products/${productId}/reviews/writable`, undefined, {
+    redirectOn401: false,
+  });
+
 const json = (method: string, body: ReviewInput) => ({
   method,
   headers: { "Content-Type": "application/json" },

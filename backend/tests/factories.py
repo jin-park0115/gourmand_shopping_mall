@@ -1,6 +1,7 @@
 """DB 테스트용 데이터 만들기 도우미 (회원 · 상품 · 주문)."""
 from datetime import datetime
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from infrastructure.auth.models import MemberModel
@@ -65,3 +66,11 @@ async def make_order(
     session.add(order)
     await session.flush()
     return order
+
+
+async def deliver_all_products(session: AsyncSession, email: str) -> None:
+    """리뷰 테스트용: 이 회원이 지금 있는 상품을 모두 배송완료로 받은 상태로 만들어요 (리뷰 작성 조건)."""
+    member = await session.scalar(select(MemberModel).where(MemberModel.email == email))
+    products = (await session.scalars(select(ProductModel))).all()
+    await make_order(session, member, [(p, 1) for p in products], status="배송완료")
+    await session.commit()

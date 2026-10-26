@@ -49,7 +49,8 @@
 | GET | `/products/{productId}` | 상품 상세 | 공개 | 200 | 404 · 422 | SCRUM-23 |
 | GET | `/categories` | 카테고리 6개 + 상품 수 | 공개 | 200 | - | SCRUM-22 |
 | GET | `/products/{productId}/reviews` | 리뷰 목록 (최신순 · 페이지) | 공개 | 200 | 404 · 422 | SCRUM-25 |
-| POST | `/products/{productId}/reviews` | 리뷰 작성 | 회원 | 201 | 401 · 404 · 409 · 422 | SCRUM-25 |
+| GET | `/products/{productId}/reviews/writable` | 내가 이 상품 리뷰를 쓸 수 있는지 (작성 폼 표시용) | 회원 | 200 | 401 · 404 | SCRUM-46 |
+| POST | `/products/{productId}/reviews` | 리뷰 작성 (배송완료된 주문으로 받은 상품만) | 회원 | 201 | 401 · 403 · 404 · 409 · 422 | SCRUM-25 · 46 |
 | PATCH | `/reviews/{reviewId}` | 내 리뷰 수정 | 회원 (본인) | 200 | 401 · 403 · 404 · 422 | SCRUM-25 |
 | DELETE | `/reviews/{reviewId}` | 내 리뷰 삭제 | 회원 (본인) | 204 | 401 · 403 · 404 | SCRUM-25 |
 
@@ -221,9 +222,20 @@ Content-Type: application/json
 | 오류 | code | 예 |
 | --- | --- | --- |
 | 401 | `UNAUTHORIZED` | 토큰 없음 · 만료 · 로그아웃된 토큰 |
+| 403 | `FORBIDDEN` | "배송완료된 주문의 상품만 리뷰를 쓸 수 있어요." (내 주문 중 이 상품이 든 `배송완료` 주문이 없음. 접수 ~ 배송지연 · 주문취소는 안 돼요) |
 | 404 | `NOT_FOUND` | 없는 상품 |
 | 409 | `CONFLICT` | "이미 이 상품에 리뷰를 작성했어요." (상품당 1인 1리뷰, DB UNIQUE로도 막아요) |
 | 422 | `VALIDATION_ERROR` | `rating=6`, `content` 10자 미만 · 1000자 초과 |
+
+### GET /products/{productId}/reviews/writable
+
+상품 상세에서 작성 폼을 보여 줄지 정할 때 써요. 등록할 때도 서버가 같은 규칙으로 다시 검사해요.
+
+```json
+{ "canWrite": false, "message": "배송완료된 주문의 상품만 리뷰를 쓸 수 있어요." }
+```
+
+쓸 수 있으면 `{ "canWrite": true, "message": null }` 이에요. 이미 쓴 리뷰가 있는지는 목록의 `isMine` 으로 봐요.
 
 ### PATCH /reviews/{reviewId}
 

@@ -1,7 +1,7 @@
 """리뷰 도메인 객체와 규칙 (순수 파이썬).
 
 규칙: 별점 1~5, 내용은 앞뒤 공백을 뺀 10~1000자, 상품당 1인 1리뷰(Repository · DB UNIQUE 가 막아요),
-본인 리뷰만 수정 · 삭제 (관리자도 남의 리뷰는 못 고쳐요).
+배송완료된 주문으로 받은 상품만 리뷰 작성, 본인 리뷰만 수정 · 삭제 (관리자도 남의 리뷰는 못 고쳐요).
 """
 from dataclasses import dataclass
 from datetime import datetime
@@ -11,6 +11,7 @@ from domain.exceptions import InvalidValueError, PermissionDeniedError
 RATING_MIN, RATING_MAX = 1, 5
 CONTENT_MIN_LENGTH, CONTENT_MAX_LENGTH = 10, 1000
 DUPLICATE_MESSAGE = "이미 이 상품에 리뷰를 작성했어요."
+PURCHASE_REQUIRED_MESSAGE = "배송완료된 주문의 상품만 리뷰를 쓸 수 있어요."
 
 
 @dataclass(frozen=True)
@@ -28,6 +29,12 @@ class Review:
         """action: '수정' · '삭제'. 남의 리뷰면 403."""
         if self.member_id != member_id:
             raise PermissionDeniedError(f"본인이 작성한 리뷰만 {action}할 수 있어요.")
+
+
+def check_purchased(delivered: bool) -> None:
+    """delivered: 이 회원의 배송완료 주문에 이 상품이 있는지. 없으면 403."""
+    if not delivered:
+        raise PermissionDeniedError(PURCHASE_REQUIRED_MESSAGE)
 
 
 def validate_rating(rating: int) -> int:

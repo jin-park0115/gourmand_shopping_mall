@@ -1,10 +1,13 @@
 """SCRUM-25: 리뷰 API (목록 · 작성 · 수정 · 삭제, 테스트 DB). SCRUM-38 로그아웃 후 같은 토큰 401 포함."""
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select
 
 from database import get_session
+from infrastructure.auth.models import MemberModel
+from infrastructure.product.models import ProductModel
 from main import app
-from tests.factories import make_product
+from tests.factories import deliver_all_products, make_order, make_product
 
 pytestmark = pytest.mark.anyio
 
@@ -19,6 +22,7 @@ async def client(db_session):
 
     app.dependency_overrides[get_session] = _session
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        c.db = db_session  # _auth 가 배송완료 주문을 만들 때 써요
         yield c
     app.dependency_overrides.clear()
 
@@ -28,8 +32,11 @@ async def product_id(db_session) -> int:
     return (await make_product(db_session, name="곤약젤리")).product_id
 
 
-async def _auth(client, email: str = "kim@gourmand.com", name: str = "김구르") -> dict:
+async def _auth(client, email: str = "kim@gourmand.com", name: str = "김구르", *, bought: bool = True) -> dict:
+    """회원가입 · 로그인. bought 면 지금 있는 상품을 모두 배송완료로 받은 회원이에요 (리뷰 작성 조건)."""
     await client.post("/auth/signup", json={"email": email, "password": PASSWORD, "name": name})
+    if bought:
+        await deliver_all_products(client.db, email)
     token = (await client.post("/auth/login", data={"username": email, "password": PASSWORD})).json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
 
@@ -154,3 +161,51 @@ async def test_logged_out_token_cannot_write(client, product_id) -> None:
     # 공개 목록은 무효 토큰이어도 보여요 (isMine 만 false)
     listed = await client.get(f"/products/{product_id}/reviews", headers=kim)
     assert listed.status_code == 200 and listed.json()["items"][0]["isMine"] is False
+
+
+# 리뷰 작성 조건: 배송완료된 주문으로 받은 상품만 (SCRUM-46 점검 중 발견)
+PURCHASE_REQUIRED = {"code": "FORBIDDEN", "message": "배송완료된 주문의 상품만 리뷰를 쓸 수 있어요."}
+
+
+async def _order(client, email: str, product_id: int, status: str) -> None:
+    member = await client.db.scalar(select(MemberModel).where(MemberModel.email == email))
+    product = await client.db.get(ProductModel, product_id)
+    await make_order(client.db, member, [(product, 1)], status=status)
+    await client.db.commit()
+
+
+@pytest.mark.parametrize("status", [None, "접수", "상품준비중", "배송중", "배송지연", "주문취소"])
+async def test_not_delivered_cannot_write(client, product_id, status) -> None:
+    kim = await _auth(client, bought=False)
+    if status:
+        await _order(client, "kim@gourmand.com", product_id, status)
+
+    res = await client.post(f"/products/{product_id}/reviews", json=BODY, headers=kim)
+    assert res.status_code == 403 and res.json() == PURCHASE_REQUIRED
+    assert (await client.get(f"/products/{product_id}/reviews")).json()["total"] == 0
+    writable = (await client.get(f"/products/{product_id}/reviews/writable", headers=kim)).json()
+    assert writable == {"canWrite": False, "message": PURCHASE_REQUIRED["message"]}
+
+
+async def test_delivered_order_can_write(client, product_id) -> None:
+    kim = await _auth(client, bought=False)
+    await _order(client, "kim@gourmand.com", product_id, "배송완료")
+
+    assert (await client.get(f"/products/{product_id}/reviews/writable", headers=kim)).json() == {"canWrite": True, "message": None}
+    assert (await client.post(f"/products/{product_id}/reviews", json=BODY, headers=kim)).status_code == 201
+
+
+async def test_other_product_delivered_is_not_enough(client, db_session, product_id) -> None:
+    other = (await make_product(db_session, name="로투스")).product_id
+    kim = await _auth(client, bought=False)
+    await _order(client, "kim@gourmand.com", other, "배송완료")
+
+    res = await client.post(f"/products/{product_id}/reviews", json=BODY, headers=kim)
+    assert res.status_code == 403 and res.json() == PURCHASE_REQUIRED
+
+
+async def test_writable_needs_login_and_product(client, product_id) -> None:
+    res = await client.get(f"/products/{product_id}/reviews/writable")
+    assert res.status_code == 401 and res.json()["code"] == "UNAUTHORIZED"
+    res = await client.get("/products/999999/reviews/writable", headers=await _auth(client))
+    assert res.status_code == 404 and res.json()["code"] == "NOT_FOUND"

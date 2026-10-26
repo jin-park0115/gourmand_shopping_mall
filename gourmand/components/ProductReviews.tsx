@@ -12,6 +12,7 @@ import {
   createReview,
   deleteReview,
   fetchReviews,
+  fetchReviewWritable,
   reviewDate,
   updateReview,
   type Review,
@@ -162,6 +163,24 @@ export default function ProductReviews({ productId }: { productId: number }) {
     if (ready) load(1);
   }, [ready, member?.id, load]);
 
+  // 배송완료된 주문으로 받은 상품만 리뷰를 쓸 수 있어서, 로그인한 회원이 쓸 수 있는지 서버에 물어봐요.
+  // 누구의 결과인지 같이 저장해서, 회원이 바뀌면 이전 회원 결과를 쓰지 않아요
+  const memberId = member?.id ?? null;
+  const [writable, setWritable] = useState<{ memberId: number; message: string | null } | null>(null);
+  useEffect(() => {
+    if (memberId === null) return;
+    let cancelled = false;
+    fetchReviewWritable(productId).then(
+      (res) => !cancelled && setWritable({ memberId, message: res.canWrite ? null : res.message }),
+      () => !cancelled && setWritable({ memberId, message: null }) // 확인하지 못하면 폼을 보여 주고, 등록할 때 서버가 막아요
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [memberId, productId]);
+  const writableChecked = memberId !== null && writable?.memberId === memberId;
+  const writeBlocked = writableChecked ? writable.message : null;
+
   // 작성 · 수정 · 삭제 후: 목록을 처음부터 다시, 위쪽 평균 별점 · 리뷰 수는 서버 화면을 새로 그려서
   const afterChange = async () => {
     setEditingId(null);
@@ -202,6 +221,10 @@ export default function ProductReviews({ productId }: { productId: number }) {
         ) : wroteAlready ? (
           <p className="rounded-xl bg-brand-soft px-4 py-3 text-sm text-brand">
             이 상품에 리뷰를 작성했어요. 아래에서 수정하거나 삭제할 수 있어요.
+          </p>
+        ) : !writableChecked ? null : writeBlocked ? (
+          <p className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-4 text-sm text-gray-600">
+            {writeBlocked}
           </p>
         ) : (
           <ReviewForm

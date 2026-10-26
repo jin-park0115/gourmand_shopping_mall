@@ -17,7 +17,7 @@ from core.config import get_settings
 from database import get_session
 from infrastructure.review.models import ReviewModel
 from main import app
-from tests.factories import make_product
+from tests.factories import deliver_all_products, make_product
 
 pytestmark = pytest.mark.anyio
 
@@ -33,6 +33,7 @@ async def client(db_session):
 
     app.dependency_overrides[get_session] = _session
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        c.db = db_session  # _auth 가 배송완료 주문을 만들 때 써요
         yield c
     app.dependency_overrides.clear()
 
@@ -46,8 +47,11 @@ async def ctx(client, db_session) -> dict:
     return {"product": product_id, "review": review_id, "kim": kim, "lee": lee}
 
 
-async def _auth(client, email: str, name: str) -> dict:
+async def _auth(client, email: str, name: str, *, bought: bool = True) -> dict:
+    """회원가입 · 로그인. bought 면 지금 있는 상품을 모두 배송완료로 받은 회원이에요 (리뷰 작성 조건)."""
     await client.post("/auth/signup", json={"email": email, "password": PASSWORD, "name": name})
+    if bought:
+        await deliver_all_products(client.db, email)
     token = (await client.post("/auth/login", data={"username": email, "password": PASSWORD})).json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
 
