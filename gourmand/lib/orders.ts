@@ -1,5 +1,5 @@
 // 주문 API (백엔드 /orders, SCRUM-29). 주문 상품 · 가격은 서버 장바구니에서 정해져서 배송 정보만 보내요
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, type Page } from "@/lib/api";
 import type { OrderInput } from "@/lib/orderStorage";
 
 export interface OrderItem {
@@ -40,6 +40,25 @@ export function placeOrder(input: OrderInput) {
 }
 
 export const fetchOrder = (orderId: number) => api<Order>(`/orders/${orderId}`);
+
+export interface MyOrderFilter {
+  status?: string; // 주문 상태 (없으면 전체)
+  from?: string; // YYYY-MM-DD
+  page?: number;
+  size?: number;
+}
+
+export function fetchMyOrders({ status, from, page = 1, size = 5 }: MyOrderFilter) {
+  const params = new URLSearchParams({ page: String(page), size: String(size) });
+  if (status) params.set("status", status);
+  if (from) params.set("from", from);
+  return api<Page<Order>>(`/orders?${params}`);
+}
+
+// 접수 · 상품준비중일 때만 취소할 수 있어요 (서버 domain/order/status.py CUSTOMER_CANCELLABLE 과 같게)
+export const CANCELLABLE_STATUSES = ["접수", "상품준비중"];
+
+export const cancelOrder = (orderId: number) => api<Order>(`/orders/${orderId}/cancel`, { method: "POST" });
 
 // 서버의 배송 정보 검증 문구를 해당 입력칸 아래에 보여 주려고 칸을 찾아요 (domain/order/order.py ShippingInfo 문구)
 const FIELD_BY_MESSAGE: [string, keyof OrderInput][] = [

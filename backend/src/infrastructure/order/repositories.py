@@ -1,11 +1,11 @@
 """주문 Repository: ORM 모델 ↔ 도메인 객체 변환, 비동기 조회·저장."""
-from datetime import datetime
+from datetime import datetime, time, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from domain.order.order import Order, OrderLine, Payment, PaymentStatus, ShippingInfo
+from domain.order.order import MyOrderQuery, Order, OrderLine, Payment, PaymentStatus, ShippingInfo
 from domain.order.status import OrderStatus
 from infrastructure.order.models import OrderItemModel, OrderModel, PaymentModel
 
@@ -45,14 +45,45 @@ class OrderRepository:
         await self.session.flush()
         return row.order_id
 
-    async def get_mine(self, member_id: int, order_id: int) -> Order | None:
-        """남의 주문은 없는 주문과 똑같이 None (주문 번호로 남의 주문이 있는지 알 수 없게)."""
-        row = await self.session.scalar(
-            select(OrderModel)
-            .where(OrderModel.order_id == order_id, OrderModel.member_id == member_id)
-            .options(selectinload(OrderModel.items).selectinload(OrderItemModel.product), selectinload(OrderModel.payment))
-        )
+    async def owner_of(self, order_id: int) -> int | None:
+        """주문한 회원 번호. 없는 주문이면 None (404 와 남의 주문 403 을 구분하려고)."""
+        return await self.session.scalar(select(OrderModel.member_id).where(OrderModel.order_id == order_id))
+
+    async def get(self, order_id: int) -> Order | None:
+        row = await self.session.scalar(_with_details(select(OrderModel).where(OrderModel.order_id == order_id)))
         return _to_domain(row) if row else None
+
+    async def search_mine(self, member_id: int, query: MyOrderQuery) -> tuple[list[Order], int]:
+        """내 주문 (최근 주문이 먼저). (목록, 전체 개수)"""
+        conditions = [OrderModel.member_id == member_id]
+        if query.status:
+            conditions.append(OrderModel.status == query.status.value)
+        # ordered_at 은 KST 로 저장돼요. 끝 날짜는 그날 하루 전체를 포함해요 (관리자 목록과 같은 규칙)
+        if query.date_from:
+            conditions.append(OrderModel.ordered_at >= datetime.combine(query.date_from, time.min))
+        if query.date_to:
+            conditions.append(OrderModel.ordered_at < datetime.combine(query.date_to + timedelta(days=1), time.min))
+
+        total = await self.session.scalar(select(func.count()).select_from(OrderModel).where(*conditions))
+        rows = await self.session.scalars(
+            _with_details(select(OrderModel).where(*conditions))
+            .order_by(OrderModel.ordered_at.desc(), OrderModel.order_id.desc())
+            .offset((query.page - 1) * query.size)
+            .limit(query.size)
+        )
+        return [_to_domain(row) for row in rows], total or 0
+
+    async def set_status(self, order_id: int, status: OrderStatus, changed_at: datetime) -> None:
+        row = await self.session.get(OrderModel, order_id)
+        row.status = status.value
+        row.updated_at = changed_at
+        await self.session.flush()
+
+
+def _with_details(stmt):
+    return stmt.options(
+        selectinload(OrderModel.items).selectinload(OrderItemModel.product), selectinload(OrderModel.payment)
+    ).execution_options(populate_existing=True)
 
 
 def _to_domain(row: OrderModel) -> Order:
