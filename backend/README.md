@@ -52,8 +52,10 @@ src/
 | `NotFoundError` | 404 | `NOT_FOUND` |
 | `AuthenticationError` | 401 | `UNAUTHORIZED` (`WWW-Authenticate: Bearer` 헤더 포함) |
 | `PermissionDeniedError` | 403 | `FORBIDDEN` |
-| 요청 검증 실패 (Pydantic) | 422 | `VALIDATION_ERROR` (+ `errors`) |
+| 요청 검증 실패 (Pydantic) | 422 | `VALIDATION_ERROR` (+ `errors`). `message`는 `필드: 우리말 문장` |
 | 예상하지 못한 오류 | 500 | `INTERNAL_SERVER_ERROR` (내부 정보는 로그에만) |
+
+형식 오류 메시지는 `VALIDATION_MESSAGES`(Pydantic 오류 종류 → 우리말)로 바꿔요. 필드 이름은 영어 그대로 앞에 붙여요 (`rating: 5 이하로 입력해 주세요.`). 표에 없는 종류는 영어 원문이 나가니 필요하면 한 줄 추가하세요. 스키마에서 `raise ValueError("…")` 한 문장은 그대로 보여 줘요.
 
 ```python
 from domain.exceptions import BusinessRuleError
