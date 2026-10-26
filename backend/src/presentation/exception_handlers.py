@@ -32,6 +32,12 @@ STATUS_BY_ERROR: dict[type[AppError], int] = {
     PermissionDeniedError: 403,
 }
 
+# 프레임워크가 내는 기본 영어 문구는 우리말로 바꿔요 (직접 적은 detail 은 그대로)
+MESSAGE_BY_DEFAULT_DETAIL = {
+    "Not Found": "요청한 주소를 찾을 수 없어요.",
+    "Method Not Allowed": "이 주소에서는 지원하지 않는 요청 방식이에요.",
+}
+
 CODE_BY_HTTP_STATUS = {
     400: "BAD_REQUEST",
     401: "UNAUTHORIZED",
@@ -70,7 +76,8 @@ async def validation_error_handler(request: Request, exc: RequestValidationError
 async def http_error_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
     # 없는 경로(404) · 허용되지 않은 메서드(405) 같은 프레임워크 오류도 같은 형식으로
     code = CODE_BY_HTTP_STATUS.get(exc.status_code, "HTTP_ERROR")
-    response = _error(exc.status_code, code, str(exc.detail))
+    detail = str(exc.detail)
+    response = _error(exc.status_code, code, MESSAGE_BY_DEFAULT_DETAIL.get(detail, detail))
     if exc.headers:
         response.headers.update(exc.headers)
     return response
