@@ -1,6 +1,6 @@
 # [A 상품·리뷰] 실패 케이스 · 로그아웃 후 401 검증 (SCRUM-37 · 38)
 
-확인일: 2026-10-26 · 로컬(`localhost:8000` Swagger, `localhost:3000` 화면, PostgreSQL `psql` 재조회)
+확인일: 2026-10-26 (구매 조건은 SCRUM-46 #41 이후 다시 확인) · 로컬(`localhost:8000` Swagger, `localhost:3000` 화면, PostgreSQL `psql` 재조회)
 자동 테스트: [`backend/tests/test_review_failures.py`](../../backend/tests/test_review_failures.py) (19개), [`test_review_api.py`](../../backend/tests/test_review_api.py), [`test_product_api.py`](../../backend/tests/test_product_api.py)
 
 ## 요약
@@ -12,6 +12,7 @@
 | 401 | 만료된 토큰 | `UNAUTHORIZED` / 로그인이 만료됐어요. 다시 로그인해 주세요. | 그대로 |
 | 401 | **로그아웃한 같은 토큰** (SCRUM-38) | `UNAUTHORIZED` / 로그아웃된 토큰이에요. 다시 로그인해 주세요. | 그대로 |
 | 403 | 남의 리뷰 수정 · 삭제 | `FORBIDDEN` / 본인이 작성한 리뷰만 수정(삭제)할 수 있어요. | 그대로 |
+| 403 | **배송완료 주문이 없는 상품에 리뷰 작성** (접수 ~ 배송지연 · 주문취소 포함) | `FORBIDDEN` / 배송완료된 주문의 상품만 리뷰를 쓸 수 있어요. | 그대로 |
 | 404 | 없는 상품 · 리뷰 · 주소 | `NOT_FOUND` / 상품을 · 리뷰를 · 요청한 주소를 찾을 수 없어요. | — |
 | 405 | `PUT /reviews/{id}` | `METHOD_NOT_ALLOWED` | — |
 | 409 | 같은 상품에 두 번째 리뷰 | `CONFLICT` / 이미 이 상품에 리뷰를 작성했어요. | 1개 그대로 |
@@ -20,6 +21,24 @@
 - **400은 나지 않아요.** 형식 오류는 공통 규칙대로 모두 422 `VALIDATION_ERROR`예요 (깨진 JSON도 422).
 - **상품 API는 공개라서** 401 · 403이 없어요 (404 · 422만 해당).
 - 로그아웃한 토큰으로도 **공개 목록 · 상품 상세는 200**이에요 (`isMine`만 false).
+
+## 구매 조건 (SCRUM-46 점검 중 추가된 규칙)
+
+리뷰는 **배송완료된 주문으로 받은 상품**에만 쓸 수 있어요. 상세 화면은 `GET /products/{id}/reviews/writable`로 먼저 물어보고, 못 쓰면 작성 폼 대신 이유를 보여 줘요.
+테스트: `test_review_api.py`의 `test_not_delivered_cannot_write`(배송완료 외 상태 전부) · `test_delivered_order_can_write` · `test_other_product_delivered_is_not_enough` · `test_writable_needs_login_and_product`
+
+| 화면 (가입만 한 회원, 상품 7) |
+|---|
+| ![not purchased](../images/scrum-37/screen-403-not-purchased.png) |
+
+```
+GET  /products/7/reviews/writable → 200 {"canWrite":false,"message":"배송완료된 주문의 상품만 리뷰를 쓸 수 있어요."}
+POST /products/7/reviews          → 403 {"code":"FORBIDDEN","message":"배송완료된 주문의 상품만 리뷰를 쓸 수 있어요."}
+
+-- 상품 7 리뷰 수 (POST 전 → 후): 1 → 1
+```
+
+> 아래 Swagger · 화면 캡처 중 **작성 성공(201) · 409 · 로그아웃 후 401** 장면은 이 규칙이 생기기 전에 찍었어요. 지금은 배송완료 주문이 있는 회원이어야 같은 장면이 나와요. 응답 모양과 메시지는 그대로예요.
 
 ## Swagger (`/docs`)
 
