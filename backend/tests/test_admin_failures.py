@@ -141,11 +141,12 @@ async def test_404_for_missing_order_and_path(admin) -> None:
     _assert_error(await admin.get("/admin/orders/999999"), 404, "NOT_FOUND", "주문을 찾을 수 없어요.")
     res = await admin.patch("/admin/orders/999999/status", json={"status": "상품준비중"})
     _assert_error(res, 404, "NOT_FOUND", "주문을 찾을 수 없어요.")
-    _assert_error(await admin.get("/admin/order"), 404, "NOT_FOUND")
+    _assert_error(await admin.get("/admin/order"), 404, "NOT_FOUND", "요청한 주소를 찾을 수 없어요.")
 
 
 async def test_405_for_unsupported_method(ctx, admin) -> None:
-    _assert_error(await admin.delete(f"/admin/orders/{ctx['preparing']}"), 405, "METHOD_NOT_ALLOWED")
+    res = await admin.delete(f"/admin/orders/{ctx['preparing']}")
+    _assert_error(res, 405, "METHOD_NOT_ALLOWED", "이 주소에서는 지원하지 않는 요청 방식이에요.")
 
 
 # ── 409: 지금 상태에서 할 수 없는 변경 ──
