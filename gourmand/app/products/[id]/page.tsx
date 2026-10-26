@@ -16,6 +16,7 @@ import {
 import HomeSection from "@/components/HomeSection";
 import ProductCard from "@/components/ProductCard";
 import ProductPurchase from "@/components/ProductPurchase";
+import ProductReviews from "@/components/ProductReviews";
 import ProductRow from "@/components/ProductRow";
 
 type DetailPageProps = {
@@ -126,7 +127,7 @@ async function ProductDetail({ params }: DetailPageProps) {
             {p.name}
           </h1>
 
-          <div className="mt-2 flex items-center gap-1.5 text-sm">
+          <a href="#reviews" className="mt-2 flex w-fit items-center gap-1.5 text-sm hover:underline">
             <Stars rating={p.rating} />
             {p.reviewCount > 0 ? (
               <span className="text-gray-600">
@@ -136,7 +137,7 @@ async function ProductDetail({ params }: DetailPageProps) {
             ) : (
               <span className="text-gray-500">아직 리뷰가 없어요</span>
             )}
-          </div>
+          </a>
 
           {/* 가격 */}
           <div className="mt-5 flex flex-wrap items-baseline gap-x-2">
@@ -195,6 +196,8 @@ async function ProductDetail({ params }: DetailPageProps) {
           </tbody>
         </table>
       </section>
+
+      <ProductReviews productId={p.id} />
 
       {/* 같은 나라 간식 */}
       {related.length > 0 && (
