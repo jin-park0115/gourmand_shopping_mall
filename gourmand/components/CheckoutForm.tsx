@@ -3,13 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCart } from "@/components/CartProvider";
-import {
-  createOrder,
-  getSavedShipping,
-  saveShipping,
-  type OrderInput,
-} from "@/lib/orderStorage";
+import { cartErrorMessage, useCart } from "@/components/CartProvider";
+import { getSavedShipping, saveShipping, type OrderInput } from "@/lib/orderStorage";
+import { placeOrder, shippingErrorField } from "@/lib/orders";
 
 type Errors = Partial<Record<keyof OrderInput, string>>;
 
@@ -50,12 +46,14 @@ const inputClass =
 
 export default function CheckoutForm() {
   const router = useRouter();
-  const { items, hydrated, totalCount, totalPrice, clearCart, orderable } = useCart();
+  const { items, hydrated, totalCount, totalPrice, orderable, reload } = useCart();
   const [form, setForm] = useState<OrderInput>(INITIAL);
   const [errors, setErrors] = useState<Errors>({});
   const [submitted, setSubmitted] = useState(false);
   const [saved, setSaved] = useState<OrderInput | null>(null);
   const [remember, setRemember] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   // 저장된 배송 정보가 있는지 확인 (브라우저에서만 가능해서 effect 안에서 읽어요)
   useEffect(() => {
@@ -108,28 +106,29 @@ export default function CheckoutForm() {
     setErrors({});
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const found = validate(form);
     setErrors(found);
+    setSubmitError(null);
     if (Object.keys(found).length > 0) return;
 
-    setSubmitted(true);
-    createOrder(
-      form,
-      items.map((i) => ({
-        id: i.id,
-        name: i.name,
-        imageUrl: i.imageUrl,
-        price: i.price,
-        quantity: i.quantity,
-      })),
-      totalPrice
-    );
-    if (remember) saveShipping(form);
-    // 주문 저장은 아직 브라우저(orderStorage)라 서버 장바구니만 비워요. 주문 API 전환은 SCRUM-30
-    clearCart().catch(() => {});
-    router.push("/order/complete");
+    setSubmitting(true);
+    try {
+      // 서버가 장바구니로 주문을 만들고 장바구니를 비워요 (재고 차감 · 결제완료까지 한 번에, SCRUM-29)
+      const order = await placeOrder(form);
+      setSubmitted(true); // 비워진 장바구니로 "비어 있어요" 화면이 깜빡이지 않게
+      if (remember) saveShipping(form);
+      reload(); // 헤더 장바구니 숫자도 0 으로
+      router.push(`/order/complete?orderId=${order.orderId}`);
+    } catch (err) {
+      // 배송 정보 문제면 해당 칸 아래에, 그 밖의 이유(재고 부족 등)는 버튼 위에 서버 문구 그대로
+      const field = shippingErrorField(err);
+      if (field) setErrors({ [field]: cartErrorMessage(err) });
+      else setSubmitError(cartErrorMessage(err));
+      reload(); // 재고가 바뀌었을 수 있어서 장바구니를 다시 받아요 (품절 · 재고 초과면 주문서 대신 장바구니 안내로)
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -258,11 +257,18 @@ export default function CheckoutForm() {
           </span>
         </div>
 
+        {submitError && (
+          <p role="alert" className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+            {submitError}
+          </p>
+        )}
+
         <button
           type="submit"
-          className="mt-5 w-full rounded-lg bg-brand py-3 font-semibold text-white transition hover:bg-brand-dark"
+          disabled={submitting}
+          className="mt-5 w-full rounded-lg bg-brand py-3 font-semibold text-white transition hover:bg-brand-dark disabled:bg-gray-300"
         >
-          주문 완료하기
+          {submitting ? "주문하는 중…" : "주문 완료하기"}
         </button>
       </aside>
     </form>

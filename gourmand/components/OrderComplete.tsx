@@ -2,36 +2,53 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { getLastOrder, type Order } from "@/lib/orderStorage";
+import { useSearchParams } from "next/navigation";
+import { useAuth } from "@/components/AuthProvider";
+import { ApiError, loginHref } from "@/lib/api";
+import { fetchOrder, type Order } from "@/lib/orders";
+
+type Loaded = { orderId: number; order: Order | null; error: string | null };
 
 export default function OrderComplete() {
-    const [order, setOrder] = useState<Order | null>(null);
-    const [loaded, setLoaded] = useState(false);
+    const orderId = Number(useSearchParams().get("orderId")) || null;
+    const { member, ready } = useAuth();
+    const [loaded, setLoaded] = useState<Loaded | null>(null);
 
+    // 주문 번호로 서버에서 내 주문을 불러와요 (남의 주문 · 없는 주문은 404)
     useEffect(() => {
-        setOrder(getLastOrder());
-        setLoaded(true);
-    }, []);
+        if (!orderId || !member) return;
+        let cancelled = false;
+        fetchOrder(orderId)
+            .then((order) => ({ orderId, order, error: null }))
+            .catch((e) => ({
+                orderId,
+                order: null,
+                error: e instanceof ApiError && e.status === 404 ? null : "주문 정보를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.",
+            }))
+            .then((res) => !cancelled && setLoaded(res));
+        return () => {
+            cancelled = true;
+        };
+    }, [orderId, member]);
 
-    if (!loaded) {
+    if (!ready || (orderId && member && loaded?.orderId !== orderId)) {
         return <p className="py-20 text-center text-gray-500">불러오는 중...</p>;
     }
 
-    if (!order) {
+    if (orderId && !member) {
         return (
-            <div className="py-20 text-center">
-                <p className="text-gray-600">확인할 주문 내역이 없어요.</p>
-                <Link
-                    href="/"
-                    className="mt-4 inline-block rounded-lg bg-brand px-5 py-2.5 font-semibold text-white transition hover:bg-brand-dark"
-                >
-                    홈으로
-                </Link>
-            </div>
+            <Notice
+                text="로그인하면 주문 내역을 확인할 수 있어요."
+                href={loginHref(`/order/complete?orderId=${orderId}`)}
+                label="로그인하기"
+            />
         );
     }
 
-    const { buyer } = order;
+    if (loaded?.error) return <Notice text={loaded.error} href="/mypage" label="주문 내역 보기" />;
+
+    const order = loaded?.order;
+    if (!order) return <Notice text="확인할 주문 내역이 없어요." href="/" label="홈으로" />;
 
     return (
         <div className="mx-auto max-w-2xl">
@@ -41,6 +58,7 @@ export default function OrderComplete() {
                     주문번호 <span className="font-semibold text-gray-900">{order.orderId}</span>
                     {" · "}
                     {order.status}
+                    {order.payment && ` · ${order.payment.status}`}
                 </p>
             </div>
 
@@ -48,7 +66,7 @@ export default function OrderComplete() {
                 <h2 className="font-bold text-gray-900">주문 상품</h2>
                 <ul className="mt-4 divide-y divide-gray-100">
                     {order.items.map((i) => (
-                        <li key={i.id} className="flex items-center gap-4 py-3">
+                        <li key={i.productId} className="flex items-center gap-4 py-3">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
                                 src={i.imageUrl}
@@ -58,11 +76,11 @@ export default function OrderComplete() {
                             <div className="min-w-0 flex-1">
                                 <p className="line-clamp-1 text-sm font-medium text-gray-900">{i.name}</p>
                                 <p className="text-xs text-gray-500">
-                                    {i.price.toLocaleString()}원 × {i.quantity}
+                                    {i.unitPrice.toLocaleString()}원 × {i.quantity}
                                 </p>
                             </div>
                             <p className="text-sm font-semibold text-gray-900">
-                                {(i.price * i.quantity).toLocaleString()}원
+                                {i.subtotal.toLocaleString()}원
                             </p>
                         </li>
                     ))}
@@ -80,16 +98,16 @@ export default function OrderComplete() {
                 <dl className="mt-4 space-y-2">
                     <div className="flex gap-4">
                         <dt className="w-20 text-gray-500">받는 분</dt>
-                        <dd>{buyer.buyerName}</dd>
+                        <dd>{order.recipient}</dd>
                     </div>
                     <div className="flex gap-4">
                         <dt className="w-20 text-gray-500">연락처</dt>
-                        <dd>{buyer.phone}</dd>
+                        <dd>{order.phone}</dd>
                     </div>
                     <div className="flex gap-4">
                         <dt className="w-20 text-gray-500">주소</dt>
                         <dd>
-                            ({buyer.zipcode}) {buyer.address1} {buyer.address2}
+                            ({order.zipcode}) {order.address1} {order.address2}
                         </dd>
                     </div>
                 </dl>
@@ -109,6 +127,20 @@ export default function OrderComplete() {
                     쇼핑 계속하기
                 </Link>
             </div>
+        </div>
+    );
+}
+
+function Notice({ text, href, label }: { text: string; href: string; label: string }) {
+    return (
+        <div className="py-20 text-center">
+            <p className="text-gray-600">{text}</p>
+            <Link
+                href={href}
+                className="mt-4 inline-block rounded-lg bg-brand px-5 py-2.5 font-semibold text-white transition hover:bg-brand-dark"
+            >
+                {label}
+            </Link>
         </div>
     );
 }
