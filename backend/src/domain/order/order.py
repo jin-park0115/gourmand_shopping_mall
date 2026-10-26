@@ -5,7 +5,7 @@
 """
 import re
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from enum import StrEnum
 
 from domain.exceptions import BusinessRuleError, InvalidValueError
@@ -92,3 +92,25 @@ def take_stock_for_order(locked: list[tuple[Product, int]]) -> list[OrderLine]:
         product.decrease_stock(quantity)  # 품절 · 재고 부족이면 여기서 예외
         lines.append(OrderLine(product.id, product.name, product.image_url, product.sale_price, quantity))
     return lines
+
+
+MAX_PAGE_SIZE = 50
+
+
+@dataclass(frozen=True)
+class MyOrderQuery:
+    """내 주문 목록 조건 (마이페이지). 만들 때 값 규칙을 검사해요."""
+
+    status: OrderStatus | None = None
+    date_from: date | None = None  # 주문일 시작 (KST)
+    date_to: date | None = None  # 주문일 끝 (그날 포함)
+    page: int = 1
+    size: int = 10
+
+    def __post_init__(self) -> None:
+        if self.date_from and self.date_to and self.date_from > self.date_to:
+            raise InvalidValueError("시작일이 종료일보다 늦어요.")
+        if self.page < 1:
+            raise InvalidValueError("page는 1 이상이어야 해요.")
+        if not 1 <= self.size <= MAX_PAGE_SIZE:
+            raise InvalidValueError(f"size는 1~{MAX_PAGE_SIZE} 사이여야 해요.")

@@ -23,7 +23,8 @@ export default function OrderComplete() {
             .catch((e) => ({
                 orderId,
                 order: null,
-                error: e instanceof ApiError && e.status === 404 ? null : "주문 정보를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.",
+                // 없는 주문(404) · 남의 주문(403)은 같은 안내로
+                error: e instanceof ApiError && (e.status === 404 || e.status === 403) ? null : "주문 정보를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.",
             }))
             .then((res) => !cancelled && setLoaded(res));
         return () => {

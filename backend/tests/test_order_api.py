@@ -171,7 +171,7 @@ async def test_blank_address2_is_saved_as_null(client, products) -> None:
     assert body["address2"] is None
 
 
-async def test_get_my_order_and_others_are_404(client, products) -> None:
+async def test_get_my_order_others_403_missing_404(client, products) -> None:
     cookie, _ = products
     kim = await _auth(client, "kim@gourmand.com")
     lee = await _auth(client, "lee@gourmand.com")
@@ -183,7 +183,8 @@ async def test_get_my_order_and_others_are_404(client, products) -> None:
     assert mine.json()["orderId"] == order_id
 
     others = await client.get(f"/orders/{order_id}", headers=lee)
-    assert others.status_code == 404
+    assert others.status_code == 403  # Jira SCRUM-31: 본인 주문만 (타인 403)
+    assert others.json() == {"code": "FORBIDDEN", "message": "본인 주문만 볼 수 있어요."}
     assert (await client.get("/orders/999999", headers=kim)).status_code == 404
 
 
