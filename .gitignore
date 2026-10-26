@@ -3,6 +3,8 @@
 __pycache__/
 *.pyc
 .env
+.env.*
+!.env.example
 
 # Node / Next.js
 node_modules/

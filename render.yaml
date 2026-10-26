@@ -1,0 +1,22 @@
+# SCRUM-59 Render 백엔드 (Blueprint). Render 대시보드 → New → Blueprint → 이 저장소 선택.
+# Python 버전은 backend/.python-version(3.13)을 따릅니다.
+services:
+  - type: web
+    name: gourmand-api
+    runtime: python
+    rootDir: backend
+    plan: free
+    region: singapore # Neon 도 AWS Singapore(ap-southeast-1)에 만들면 DB 왕복이 짧아요
+    buildCommand: pip install uv && uv sync --frozen --no-dev
+    # 무료 플랜은 pre-deploy 명령이 없어서 시작할 때 마이그레이션을 돌려요 (이미 최신이면 아무것도 안 함)
+    startCommand: .venv/bin/alembic upgrade head && .venv/bin/uvicorn main:app --app-dir src --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: UV_PYTHON_DOWNLOADS # 빌드 때 받은 Python 은 실행 때 없으므로 시스템 Python 만 쓰게
+        value: never
+      - key: DATABASE_URL # Neon 연결 주소(Direct, -pooler 아닌 것)를 그대로 붙여 넣기
+        sync: false
+      - key: CORS_ORIGINS # Vercel 주소, 예: https://gourmand.vercel.app (끝에 / 없이)
+        sync: false
+      - key: JWT_SECRET_KEY
+        generateValue: true
