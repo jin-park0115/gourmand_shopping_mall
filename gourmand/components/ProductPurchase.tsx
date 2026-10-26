@@ -32,7 +32,7 @@ export default function ProductPurchase({
     setError(null);
     setAdded(false);
     try {
-      // 로그인하지 않았으면 로그인 화면으로 이동해요 (false)
+      // 로그인하지 않았으면 로그인 안내 창을 띄워요 (false)
       if (await addItem(p.id, quantity)) {
         setAdded(true);
         setQuantity(1);

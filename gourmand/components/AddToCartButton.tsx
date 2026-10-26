@@ -75,7 +75,7 @@ export default function AddToCartButton({ p }: { p: Product }) {
   async function handleClick() {
     setBusy(true);
     try {
-      // 로그인하지 않았으면 로그인 화면으로 이동해요 (false)
+      // 로그인하지 않았으면 로그인 안내 창을 띄워요 (false)
       if (await addItem(p.id)) flash({ added: true, error: null }, 1500);
     } catch (e) {
       // 카드는 좁아서 짧게 보여 주고, 서버의 자세한 문구(예: 최대 2개)는 title · 화면 읽기 프로그램으로

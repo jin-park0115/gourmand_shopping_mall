@@ -10,7 +10,7 @@ import {
 } from "react";
 
 import { useAuth } from "@/components/AuthProvider";
-import { api, ApiError, loginHref } from "@/lib/api";
+import { api, ApiError, askLogin } from "@/lib/api";
 
 // 장바구니는 서버에 저장돼요 (SCRUM-27 /cart). 로그인한 회원만 쓸 수 있어요
 export interface CartItem {
@@ -41,7 +41,7 @@ interface CartContextValue {
   totalCount: number;
   totalPrice: number;
   // 실패하면 ApiError 를 던져요 (예: 재고 초과 409). 화면은 error.message 를 그대로 보여 주면 돼요
-  // 로그인하지 않았으면 로그인 화면으로 보내고 false 를 돌려줘요
+  // 로그인하지 않았으면 로그인이 필요하다고 묻고(확인하면 로그인 화면으로) false 를 돌려줘요
   addItem: (productId: number, quantity?: number) => Promise<boolean>;
   setQuantity: (productId: number, quantity: number) => Promise<void>;
   removeItem: (productId: number) => Promise<void>;
@@ -102,7 +102,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const addItem: CartContextValue["addItem"] = async (productId, quantity = 1) => {
     if (!member) {
-      location.assign(loginHref(location.pathname + location.search));
+      askLogin(location.pathname + location.search);
       return false;
     }
     await mutate("/cart/items", { method: "POST", ...json({ productId, quantity }) });
