@@ -1,25 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { cartErrorMessage, useCart } from "@/components/CartProvider";
-import { getSavedShipping, saveShipping, type OrderInput } from "@/lib/orderStorage";
+import { saveShipping, savedShippingSnapshot, type OrderInput } from "@/lib/orderStorage";
 import { placeOrder, shippingErrorField } from "@/lib/orders";
 
 type Errors = Partial<Record<keyof OrderInput, string>>;
 
-// 시연용 미리 채워 둔 배송 정보 (시연이 끝나면 DEMO_PREFILL을 false로 바꾸면 빈칸으로 돌아가요)
-const DEMO_PREFILL = true;
-
-const DEMO_SHIPPING: OrderInput = {
-  buyerName: "윤강",
-  phone: "010-1223-4545",
-  zipcode: "06236",
-  address1: "서울특별시 강남구 테헤란로 123",
-  address2: "구르망빌딩 3층",
-};
-
+// 빈칸으로 시작해요. 지난 주문 때 저장한 배송 정보는 "저장된 배송 정보 불러오기"로 채워요
 const EMPTY: OrderInput = {
   buyerName: "",
   phone: "",
@@ -27,8 +17,6 @@ const EMPTY: OrderInput = {
   address1: "",
   address2: "",
 };
-
-const INITIAL: OrderInput = DEMO_PREFILL ? DEMO_SHIPPING : EMPTY;
 
 function validate(form: OrderInput): Errors {
   const errors: Errors = {};
@@ -41,24 +29,30 @@ function validate(form: OrderInput): Errors {
   return errors;
 }
 
+const noop = () => () => {};
+
 const inputClass =
   "mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-brand";
 
 export default function CheckoutForm() {
   const router = useRouter();
   const { items, hydrated, totalCount, totalPrice, orderable, reload } = useCart();
-  const [form, setForm] = useState<OrderInput>(INITIAL);
+  const [form, setForm] = useState<OrderInput>(EMPTY);
   const [errors, setErrors] = useState<Errors>({});
   const [submitted, setSubmitted] = useState(false);
-  const [saved, setSaved] = useState<OrderInput | null>(null);
   const [remember, setRemember] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // 저장된 배송 정보가 있는지 확인 (브라우저에서만 가능해서 effect 안에서 읽어요)
-  useEffect(() => {
-    setSaved(getSavedShipping());
-  }, []);
+  // 저장된 배송 정보 (이 브라우저의 localStorage, 서버 렌더링 때는 없음)
+  const savedRaw = useSyncExternalStore(noop, savedShippingSnapshot, () => null);
+  const saved = useMemo<OrderInput | null>(() => {
+    try {
+      return savedRaw ? JSON.parse(savedRaw) : null;
+    } catch {
+      return null;
+    }
+  }, [savedRaw]);
 
   if (!hydrated) {
     return <p className="py-20 text-center text-gray-500">불러오는 중...</p>;
