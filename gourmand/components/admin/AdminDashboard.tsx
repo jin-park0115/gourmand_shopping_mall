@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 import { useAuth } from "@/components/AuthProvider";
-import { ApiError, loginHref, type Page } from "@/lib/api";
+import { ApiError, getToken, loginHref, type Page } from "@/lib/api";
 import type { Member } from "@/lib/auth";
 import {
   changeOrderStatus,
@@ -74,14 +74,23 @@ function Notice({ children, error = false }: { children: React.ReactNode; error?
 // 화면은 길만 막고, 진짜 검사는 백엔드 require_admin 이 해요 (토큰 없음 · 로그아웃 401, 고객 403)
 export default function AdminDashboard() {
   const { member, ready, logout } = useAuth();
+  const leaving = useRef(false); // 로그아웃 버튼으로 나가는 중 (이때는 '로그인 필요' 이동을 하지 않아요)
 
+  // 토큰이 남아 있으면 아직 확인 중이라 기다려요 (로그인 직후 들어왔을 때 로그인 화면으로 튕기지 않게)
   useEffect(() => {
-    if (ready && !member) location.assign(loginHref("/admin"));
+    if (ready && !member && !getToken() && !leaving.current) location.assign(loginHref("/admin"));
   }, [ready, member]);
 
+  // 로그아웃하면 그냥 로그인 화면으로: 다음에 누가 로그인하든 역할에 맞는 화면으로 가요
+  const onLogout = async () => {
+    leaving.current = true;
+    await logout();
+    location.replace("/login");
+  };
+
   if (!ready || !member) return <Notice>로그인 상태를 확인하고 있어요…</Notice>;
-  if (member.role !== "admin") return <Forbidden member={member} onLogout={logout} />;
-  return <Dashboard member={member} onLogout={logout} />;
+  if (member.role !== "admin") return <Forbidden member={member} onLogout={onLogout} />;
+  return <Dashboard member={member} onLogout={onLogout} />;
 }
 
 function Forbidden({ member, onLogout }: { member: Member; onLogout: () => Promise<void> }) {

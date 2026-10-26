@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { ApiError } from "@/lib/api";
-import { login, safeNext, signup } from "@/lib/auth";
+import { afterLoginPath, login, safeNext, signup, type Member } from "@/lib/auth";
 
 const inputClass =
   "mt-1 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-brand";
@@ -22,8 +22,8 @@ function Field({ label, hint, ...input }: { label: string; hint?: string } & Rea
   );
 }
 
-// 제출 → 성공하면 원래 보던 주소(next)로, 실패하면 서버 메시지를 그대로 보여 줘요
-function useSubmit(action: (form: FormData) => Promise<void>) {
+// 제출 → 성공하면 관리자는 관리자 화면, 고객은 원래 보던 주소(next)로. 실패하면 서버 메시지를 그대로 보여 줘요
+function useSubmit(action: (form: FormData) => Promise<Member>) {
   const router = useRouter();
   const next = safeNext(useSearchParams().get("next"));
   const [error, setError] = useState<string | null>(null);
@@ -34,8 +34,8 @@ function useSubmit(action: (form: FormData) => Promise<void>) {
     setError(null);
     setPending(true);
     try {
-      await action(new FormData(e.currentTarget));
-      router.replace(next);
+      const member = await action(new FormData(e.currentTarget));
+      router.replace(afterLoginPath(member.role, next));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "서버에 연결할 수 없어요. 잠시 후 다시 시도해 주세요.");
       setPending(false);
