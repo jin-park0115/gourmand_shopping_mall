@@ -32,12 +32,3 @@ export function savedShippingSnapshot(): string | null {
     return null;
   }
 }
-
-export function getSavedShipping(): OrderInput | null {
-  try {
-    const raw = localStorage.getItem(SHIPPING_KEY);
-    return raw ? (JSON.parse(raw) as OrderInput) : null;
-  } catch {
-    return null;
-  }
-}
