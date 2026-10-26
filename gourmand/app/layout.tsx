@@ -7,6 +7,7 @@ import Footer from "@/components/Footer";
 import MobileTabBar from "@/components/MobileTabBar";
 import { CartProvider } from "@/components/CartProvider";
 import { AuthProvider } from "@/components/AuthProvider";
+import { ToastProvider } from "@/components/Toast";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,14 +32,16 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col pb-16 lg:pb-0">
         <AuthProvider>
-          <CartProvider>
-            <Header />
-            <div className="flex-1">{children}</div>
-            <Footer />
-            <Suspense fallback={null}>
-              <MobileTabBar />
-            </Suspense>
-          </CartProvider>
+          <ToastProvider>
+            <CartProvider>
+              <Header />
+              <div className="flex-1">{children}</div>
+              <Footer />
+              <Suspense fallback={null}>
+                <MobileTabBar />
+              </Suspense>
+            </CartProvider>
+          </ToastProvider>
         </AuthProvider>
       </body>
     </html>
