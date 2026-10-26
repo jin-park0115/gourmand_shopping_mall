@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { useAuth } from "@/components/AuthProvider";
+import { useToast } from "@/components/Toast";
 import { ApiError, loginHref } from "@/lib/api";
 import {
   CONTENT_MAX,
@@ -129,6 +130,7 @@ function ReviewForm({
 // 상품 상세의 리뷰 칸: 작성 폼 + 목록(최신순, 10개씩 더보기) + 내 리뷰 수정 · 삭제
 export default function ProductReviews({ productId }: { productId: number }) {
   const router = useRouter();
+  const toast = useToast();
   const { member, ready } = useAuth();
   const [items, setItems] = useState<Review[]>([]);
   const [total, setTotal] = useState(0);
@@ -182,8 +184,9 @@ export default function ProductReviews({ productId }: { productId: number }) {
   const writeBlocked = writableChecked ? writable.message : null;
 
   // 작성 · 수정 · 삭제 후: 목록을 처음부터 다시, 위쪽 평균 별점 · 리뷰 수는 서버 화면을 새로 그려서
-  const afterChange = async () => {
+  const afterChange = async (done: string) => {
     setEditingId(null);
+    toast(done);
     await load(1);
     router.refresh();
   };
@@ -192,9 +195,10 @@ export default function ProductReviews({ productId }: { productId: number }) {
     if (!confirm("리뷰를 삭제할까요? 삭제하면 되돌릴 수 없어요.")) return;
     try {
       await deleteReview(id);
-      await afterChange();
+      await afterChange("리뷰를 삭제했어요.");
     } catch (e) {
-      alert(errorText(e));
+      toast(errorText(e), "error");
+      load(1); // 다른 곳에서 이미 지웠으면(404) 목록도 맞춰요
     }
   };
 
@@ -232,7 +236,7 @@ export default function ProductReviews({ productId }: { productId: number }) {
             submitLabel="리뷰 등록"
             onSubmit={async (body) => {
               await createReview(productId, body);
-              await afterChange();
+              await afterChange("리뷰를 등록했어요.");
             }}
           />
         )}
@@ -258,7 +262,7 @@ export default function ProductReviews({ productId }: { productId: number }) {
                 onCancel={() => setEditingId(null)}
                 onSubmit={async (body) => {
                   await updateReview(r.id, body);
-                  await afterChange();
+                  await afterChange("리뷰를 수정했어요.");
                 }}
               />
             ) : (
