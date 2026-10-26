@@ -1,6 +1,7 @@
 """SCRUM-22 · 23: 상품 목록 · 상세 · 카테고리 API (테스트 DB 에 시드 60개, 테스트마다 rollback)."""
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import delete
 
 from core.config import Settings
 from database import get_session
@@ -8,6 +9,7 @@ from infrastructure.product.models import ProductModel
 from infrastructure.review.models import ReviewModel
 from infrastructure.seed import run_seed
 from main import app
+from tests.factories import make_member
 
 pytestmark = pytest.mark.anyio
 
@@ -17,6 +19,7 @@ SOLD_OUT = {5, 15, 19}  # 시드에서 재고 0인 상품
 @pytest.fixture
 async def client(db_session):
     await run_seed(db_session, Settings(_env_file=None, admin_password="", customer_password=""))
+    await db_session.execute(delete(ReviewModel))  # 시드 리뷰(SCRUM-25)는 빼고, 평점 · 리뷰 수는 테스트에서 직접 만들어요
 
     async def _session():
         yield db_session
@@ -87,9 +90,10 @@ async def test_new_sort_puts_new_products_first(client) -> None:
 
 
 async def test_rating_and_review_sort(client, db_session) -> None:
+    members = [(await make_member(db_session, email=f"r{i}@test.com", role="customer")).member_id for i in range(3)]
     db_session.add_all(
-        [ReviewModel(product_id=2, author_name="a", rating=r, content="맛있어요 맛있어요") for r in (5, 4, 4)]
-        + [ReviewModel(product_id=6, author_name="b", rating=5, content="맛있어요 맛있어요")]
+        [ReviewModel(product_id=2, member_id=m, rating=r, content="맛있어요 맛있어요") for m, r in zip(members, (5, 4, 4))]
+        + [ReviewModel(product_id=6, member_id=members[0], rating=5, content="맛있어요 맛있어요")]
     )
     await db_session.flush()
 

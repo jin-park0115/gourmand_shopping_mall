@@ -247,16 +247,16 @@ Content-Type: application/json
 
 성공하면 `204` (본문 없음). 오류는 PATCH와 같아요 (403 메시지 "본인이 작성한 리뷰만 삭제할 수 있어요.").
 
-### A 구현 전에 합의할 것
+### A 구현 전에 합의할 것 (모두 반영됨)
 
-| # | 항목 | 누구와 | 내용 |
-| --- | --- | --- | --- |
-| 1 | 카테고리 기준 통일 | 안중섭 (SCRUM-15) | DB `category`(과자 · 젤리·캔디 …)와 프론트 `lib/categories.ts`(6개 분류, 상품 번호로 묶음)가 달라요. `category.slug` 컬럼을 추가하고 시드를 프론트 6개 분류로 맞추자는 제안 |
-| 2 | 나라 slug | 안중섭 (SCRUM-15) | `country.slug` 컬럼 추가 (`japan` `taiwan` `china` `vietnam`, 나머지는 slug 없이 `other` 로 응답) |
-| 3 | 평점 · 리뷰 수 | 안중섭 (SCRUM-15) | DB에 컬럼이 없어서 `review` 에서 집계해요. 시드에 리뷰가 없으면 처음엔 모두 0 → 시드 리뷰를 넣을지 |
-| 4 | `review.member_id` | 윤강 (SCRUM-18) | 지금 `review` 에는 `author_name` 만 있어 1인 1리뷰 · 본인 확인을 못 해요. `member_id` FK + `(product_id, member_id)` UNIQUE + `updated_at` 추가, `author_name` 제거 |
-| 5 | 선택 로그인 의존성 | 윤강 (SCRUM-19) | 리뷰 목록의 `isMine` 용으로 "토큰 있으면 회원, 없으면 None" 을 돌려주는 `get_optional_user` |
-| 6 | 재고 변경 함수 | 안중섭 (SCRUM-35) · 윤강 (SCRUM-29) | ProductRepository 에 `decrease_stock` · `increase_stock` 를 두고 주문 · 취소에서 같이 써요 (SCRUM-21) |
+| # | 항목 | 누구와 | 내용 | 결과 |
+| --- | --- | --- | --- | --- |
+| 1 | 카테고리 기준 통일 | 안중섭 (SCRUM-15) | DB `category`(과자 · 젤리·캔디 …)와 프론트 `lib/categories.ts`(6개 분류, 상품 번호로 묶음)가 달라요. `category.slug` 컬럼을 추가하고 시드를 프론트 6개 분류로 맞추자는 제안 | ✅ SCRUM-15 · 21 |
+| 2 | 나라 slug | 안중섭 (SCRUM-15) | `country.slug` 컬럼 추가 (`japan` `taiwan` `china` `vietnam`, 나머지는 slug 없이 `other` 로 응답) | ✅ SCRUM-21 |
+| 3 | 평점 · 리뷰 수 | 안중섭 (SCRUM-15) | DB에 컬럼이 없어서 `review` 에서 집계해요. 시드에 리뷰가 없으면 처음엔 모두 0 → 시드 리뷰를 넣을지 | ✅ SCRUM-25: 리뷰 작성용 회원 5명 · 리뷰 150개 시드 |
+| 4 | `review.member_id` | 윤강 (SCRUM-18) | 지금 `review` 에는 `author_name` 만 있어 1인 1리뷰 · 본인 확인을 못 해요. `member_id` FK + `(product_id, member_id)` UNIQUE + `updated_at` 추가, `author_name` 제거 | ✅ SCRUM-25 마이그레이션 `a4f3fa9ce8d9` |
+| 5 | 선택 로그인 의존성 | 윤강 (SCRUM-19) | 리뷰 목록의 `isMine` 용으로 "토큰 있으면 회원, 없으면 None" 을 돌려주는 `get_optional_user` | ✅ SCRUM-19 |
+| 6 | 재고 변경 함수 | 안중섭 (SCRUM-35) · 윤강 (SCRUM-29) | ProductRepository 에 `decrease_stock` · `increase_stock` 를 두고 주문 · 취소에서 같이 써요 (SCRUM-21) | ✅ `get_for_update` + `decrease_stock` · `increase_stock` + `save_stock` |
 
 컬럼 변경(1 · 2 · 4)은 합의되면 SCRUM-21 에서 Alembic 리비전으로 넣어요.
 
