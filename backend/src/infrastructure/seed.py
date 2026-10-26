@@ -4,9 +4,11 @@
 - 나라 · 카테고리: 이름(UNIQUE)
 - 상품: seed/products.json 의 id 를 product_id 로 그대로 써요 (프론트 상품 번호와 같게)
 - 계정: 이메일(UNIQUE)
+- 리뷰 (SCRUM-25): (상품, 회원) UNIQUE — 리뷰 작성용 회원 5명이 상품마다 0~5개씩 써요 (평점 · 리뷰 많은순 정렬 시연용)
 실행: `uv run python scripts/seed.py`
 """
 import json
+import secrets
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -18,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.config import Settings
 from infrastructure.auth.models import MemberModel
 from infrastructure.product.models import CategoryModel, CountryModel, ProductModel
+from infrastructure.review.models import ReviewModel
 
 PRODUCTS_JSON = Path(__file__).resolve().parents[2] / "seed" / "products.json"
 
@@ -35,6 +38,36 @@ CATEGORIES: list[tuple[str, str, list[int]]] = [
 COUNTRY_SLUGS: dict[str, str] = {"일본": "japan", "대만": "taiwan", "중국": "china", "베트남": "vietnam"}
 
 
+# 리뷰 작성용 회원 (로그인할 일이 없어서 비밀번호는 아무도 모르는 임의 값)
+REVIEWERS: list[tuple[str, str]] = [
+    ("reviewer1@seed.test", "김구르"),
+    ("reviewer2@seed.test", "이망고"),
+    ("reviewer3@seed.test", "박쿠키"),
+    ("reviewer4@seed.test", "최젤리"),
+    ("reviewer5@seed.test", "정초코"),
+]
+REVIEW_RATINGS = [5, 4, 5, 3, 4, 5, 2]
+REVIEW_CONTENTS = [
+    "포장이 꼼꼼하고 맛도 기대 이상이에요.",
+    "여행 가서 먹던 그 맛이라 반가웠어요.",
+    "아이들 간식으로 주니 순식간에 없어졌어요.",
+    "생각보다 달아서 커피랑 같이 먹으면 좋아요.",
+    "선물용으로 샀는데 받는 사람이 좋아했어요.",
+    "양이 조금 아쉽지만 맛은 확실해요.",
+    "바삭한 식감이 오래가서 좋았어요.",
+    "재구매 의사 있어요. 배송도 빨랐어요.",
+]
+
+
+def review_plan(product_ids: list[int]) -> list[tuple[int, int, int, str]]:
+    """(상품 번호, 리뷰어 순번, 별점, 내용). 상품 번호로 정해져서 몇 번 실행해도 같아요."""
+    return [
+        (pid, i, REVIEW_RATINGS[(pid + i) % len(REVIEW_RATINGS)], REVIEW_CONTENTS[(pid * 3 + i) % len(REVIEW_CONTENTS)])
+        for pid in product_ids
+        for i in range(pid % (len(REVIEWERS) + 1))  # 상품마다 0~5개
+    ]
+
+
 @dataclass(frozen=True)
 class SeedResult:
     countries: int
@@ -42,6 +75,7 @@ class SeedResult:
     products: int
     accounts: list[str]  # 만들거나 갱신한 계정 이메일
     skipped_accounts: list[str]  # 비밀번호가 없어서 건너뛴 계정 종류
+    reviews: int = 0
 
 
 def load_products(path: Path = PRODUCTS_JSON) -> list[dict]:
@@ -118,6 +152,7 @@ async def run_seed(session: AsyncSession, settings: Settings, products: list[dic
         )
         accounts.append(email)
 
+    reviews = await _seed_reviews(session, hasher, [p["id"] for p in products])
     await session.commit()
     return SeedResult(
         countries=len(country_ids),
@@ -125,7 +160,31 @@ async def run_seed(session: AsyncSession, settings: Settings, products: list[dic
         products=await session.scalar(select(func.count()).select_from(ProductModel)),
         accounts=accounts,
         skipped_accounts=skipped,
+        reviews=reviews,
     )
+
+
+async def _seed_reviews(session: AsyncSession, hasher: PasswordHash, product_ids: list[int]) -> int:
+    member_stmt = insert(MemberModel).values(
+        [{"email": e, "name": n, "role": "customer", "password_hash": hasher.hash(secrets.token_urlsafe(32))} for e, n in REVIEWERS]
+    )
+    await session.execute(member_stmt.on_conflict_do_nothing(index_elements=[MemberModel.email]))
+    member_ids = dict(
+        (await session.execute(select(MemberModel.email, MemberModel.member_id).where(MemberModel.email.in_([e for e, _ in REVIEWERS])))).all()
+    )
+    rows = [
+        {"product_id": pid, "member_id": member_ids[REVIEWERS[i][0]], "rating": rating, "content": content}
+        for pid, i, rating, content in review_plan(product_ids)
+    ]
+    if rows:
+        stmt = insert(ReviewModel).values(rows)
+        await session.execute(
+            stmt.on_conflict_do_update(
+                index_elements=[ReviewModel.product_id, ReviewModel.member_id],
+                set_={"rating": stmt.excluded.rating, "content": stmt.excluded.content},
+            )
+        )
+    return len(rows)
 
 
 async def _upsert_names(session: AsyncSession, model, id_column, values: list[dict]) -> dict[str, int]:

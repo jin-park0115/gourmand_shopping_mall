@@ -88,11 +88,12 @@ uv run alembic downgrade -1                         # 한 단계 되돌리기
 
 ```bash
 uv run alembic upgrade head      # 테이블 먼저
-uv run python scripts/seed.py    # 나라 6 · 카테고리 6 · 상품 60 · 관리자/고객 계정
+uv run python scripts/seed.py    # 나라 6 · 카테고리 6 · 상품 60 · 관리자/고객 계정 · 리뷰 150
 ```
 
 - 상품은 `seed/products.json`(60개)을 그대로 넣고, `product_id` 는 프론트 상품 번호와 같아요.
 - 카테고리는 프론트 `gourmand/lib/categories.ts` 의 6개 분류(스낵·칩, 쿠키·비스킷, 케이크·베이커리, 초콜릿, 젤리·캔디, 육포·견과·별미)예요.
 - 계정은 `.env` 의 `ADMIN_EMAIL` · `ADMIN_PASSWORD` · `CUSTOMER_EMAIL` · `CUSTOMER_PASSWORD` 로 만들어요. 비밀번호가 비어 있으면 그 계정은 건너뛰어요. 비밀번호는 argon2 해시로만 저장돼요.
 - 여러 번 실행해도 중복이 생기지 않아요 (이름 · 상품 번호 · 이메일 기준으로 덮어쓰기).
-- `category.slug` · `country.slug` 컬럼(SCRUM-21)이 생기면 `src/infrastructure/seed.py` 의 TODO 위치에서 slug 도 넣어요.
+- 카테고리 · 나라 slug(SCRUM-21)도 함께 넣어요.
+- 리뷰(SCRUM-25): 리뷰 작성용 회원 5명(`reviewer1~5@seed.test`, 로그인 불가)이 상품마다 0~5개씩, 총 150개를 써요. 평점 · "리뷰 많은순" 정렬 시연용이에요.

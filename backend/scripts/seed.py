@@ -14,7 +14,7 @@ async def main() -> None:
     async with SessionLocal() as session:
         result = await run_seed(session, get_settings())
     await engine.dispose()
-    print(f"나라 {result.countries}개 · 카테고리 {result.categories}개 · 상품 {result.products}개")
+    print(f"나라 {result.countries}개 · 카테고리 {result.categories}개 · 상품 {result.products}개 · 리뷰 {result.reviews}개")
     for email in result.accounts:
         print(f"계정 준비됨: {email}")
     for kind in result.skipped_accounts:

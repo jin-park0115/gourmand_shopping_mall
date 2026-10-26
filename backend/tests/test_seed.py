@@ -7,7 +7,8 @@ from sqlalchemy import func, select
 from core.config import Settings
 from infrastructure.auth.models import MemberModel
 from infrastructure.product.models import CategoryModel, CountryModel, ProductModel
-from infrastructure.seed import CATEGORIES, load_products, run_seed
+from infrastructure.review.models import ReviewModel
+from infrastructure.seed import CATEGORIES, REVIEWERS, load_products, review_plan, run_seed
 
 pytestmark = pytest.mark.anyio
 
@@ -75,7 +76,8 @@ async def test_running_twice_does_not_duplicate(db_session) -> None:
     assert again.products == 60
     assert await _count(db_session, CountryModel) == 6
     assert await _count(db_session, CategoryModel) == 6
-    assert await _count(db_session, MemberModel) == 2
+    assert await _count(db_session, MemberModel) == 2 + len(REVIEWERS)  # 관리자 · 고객 + 리뷰 작성용 회원
+    assert await _count(db_session, ReviewModel) == again.reviews == len(review_plan(list(range(1, 61))))
     db_session.expire_all()
     assert (await db_session.get(ProductModel, 1)).price == 3500
 
@@ -96,5 +98,14 @@ async def test_new_product_after_seed_gets_next_id(db_session) -> None:
 async def test_accounts_skipped_without_password(db_session) -> None:
     result = await run_seed(db_session, Settings(_env_file=None))
     assert result.accounts == [] and result.skipped_accounts == ["admin", "customer"]
-    assert await _count(db_session, MemberModel) == 0
+    assert await _count(db_session, MemberModel) == len(REVIEWERS)  # 리뷰 작성용 회원만
     assert result.products == 60
+
+
+async def test_seed_reviews_give_ratings(db_session) -> None:
+    result = await run_seed(db_session, SETTINGS)
+    assert result.reviews == 150  # 상품마다 0~5개
+    # 상품 번호 % 6 개 → 6번은 0개, 5번은 5개
+    counts = dict((await db_session.execute(select(ReviewModel.product_id, func.count()).group_by(ReviewModel.product_id))).all())
+    assert 6 not in counts and counts[5] == 5
+    assert all(1 <= r <= 5 for r in await db_session.scalars(select(ReviewModel.rating)))
