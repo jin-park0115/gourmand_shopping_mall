@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 
-import { products } from "@/data/products";
+import { fetchProducts } from "@/lib/products";
 
 import CountryTabs from "@/components/CountryTabs";
 import ProductCard from "@/components/ProductCard";
@@ -21,13 +21,6 @@ type CountryPageProps = {
   searchParams: Promise<{ category?: string }>;
 };
 
-// 국가 주소를 미리 지정
-export function generateStaticParams() {
-  return Object.keys(countries).map((slug) => ({
-    slug,
-  }));
-}
-
 // 주소를 읽고 나라 배너 + 탭 + 상품 목록을 표시하는 부분
 async function CountryContent({ params, searchParams }: CountryPageProps) {
   const { slug } = await params;
@@ -39,20 +32,8 @@ async function CountryContent({ params, searchParams }: CountryPageProps) {
     notFound();
   }
 
-  const countryProducts = products
-    .filter((p) => {
-      if (slug === "other") {
-        return !["일본", "대만", "중국", "베트남"].includes(p.country);
-      }
-
-      return p.country === country.name;
-    })
-    // 품절 상품은 뒤로
-    .sort(
-      (a, b) =>
-        Number(a.isSoldOut || a.stock === 0) -
-        Number(b.isSoldOut || b.stock === 0)
-    );
+  // 서버가 나라로 거르고 품절 상품은 뒤로 보내요 (other = 주요 4개국이 아닌 나라)
+  const countryProducts = (await fetchProducts({ country: slug })).items;
 
   // 과자 종류로 거르기 (?category=snack)
   const shown = filterByCategory(countryProducts, category);

@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { useCart } from "@/components/CartProvider";
+import { useEffect, useRef, useState } from "react";
+import { cartErrorMessage, useCart } from "@/components/CartProvider";
+import { ApiError } from "@/lib/api";
 import { Product } from "@/types/product";
+import { isSoldOut } from "@/lib/products";
 
 // 장바구니 아이콘
 function CartIcon() {
@@ -46,26 +48,42 @@ function CheckIcon() {
 export default function AddToCartButton({ p }: { p: Product }) {
   const { addItem } = useCart();
   const [added, setAdded] = useState(false);
+  const [error, setError] = useState<{ short: string; full: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  // 말풍선을 숨기는 타이머: 연달아 누르면 이전 타이머가 새 말풍선을 일찍 지우지 않게 매번 정리해요
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    []
+  );
 
-  const soldOut = p.isSoldOut || p.stock === 0;
-  const price =
-    p.discountPrice !== undefined && p.discountPrice < p.price
-      ? p.discountPrice
-      : p.price;
+  function flash(next: { added: boolean; error: { short: string; full: string } | null }, ms: number) {
+    if (timer.current) clearTimeout(timer.current);
+    setAdded(next.added);
+    setError(next.error);
+    timer.current = setTimeout(() => {
+      setAdded(false);
+      setError(null);
+    }, ms);
+  }
 
   // 품절이면 버튼을 보여주지 않음 (이미지 위 '품절' 표시로 충분)
-  if (soldOut) return null;
+  if (isSoldOut(p)) return null;
 
-  function handleClick() {
-    addItem({
-      id: p.id,
-      name: p.name,
-      imageUrl: p.imageUrl,
-      price,
-      stock: p.stock,
-    });
-    setAdded(true);
-    setTimeout(() => setAdded(false), 1500);
+  async function handleClick() {
+    setBusy(true);
+    try {
+      // 로그인하지 않았으면 로그인 안내 창을 띄워요 (false)
+      if (await addItem(p.id)) flash({ added: true, error: null }, 1500);
+    } catch (e) {
+      // 카드는 좁아서 짧게 보여 주고, 서버의 자세한 문구(예: 최대 2개)는 title · 화면 읽기 프로그램으로
+      const short = e instanceof ApiError && e.status === 409 ? "더 담을 수 없어요" : "담지 못했어요";
+      flash({ added: false, error: { short, full: cartErrorMessage(e) } }, 2500);
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -73,16 +91,27 @@ export default function AddToCartButton({ p }: { p: Product }) {
       {/* 담은 직후 잠깐 보이는 말풍선 (화면 읽기 프로그램에도 안내) */}
       <span
         aria-live="polite"
-        className={`rounded-full bg-brand px-2.5 py-1 text-xs font-semibold text-white shadow transition-opacity duration-200 ${
-          added ? "opacity-100" : "pointer-events-none opacity-0"
-        }`}
+        title={error?.full}
+        className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold text-white shadow transition-opacity duration-200 ${
+          error ? "bg-red-500" : "bg-brand"
+        } ${added || error ? "opacity-100" : "pointer-events-none opacity-0"}`}
       >
-        {added ? "담았어요" : ""}
+        {error ? (
+          <>
+            {error.short}
+            <span className="sr-only"> {error.full}</span>
+          </>
+        ) : added ? (
+          "담았어요"
+        ) : (
+          ""
+        )}
       </span>
 
       <button
         type="button"
         onClick={handleClick}
+        disabled={busy}
         aria-label={`${p.name} 장바구니 담기`}
         title="장바구니 담기"
         className={`flex h-10 w-10 items-center justify-center rounded-full border shadow-md transition active:scale-95 ${

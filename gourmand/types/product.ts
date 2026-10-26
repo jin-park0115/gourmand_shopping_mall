@@ -7,14 +7,16 @@ export interface Product {
   name: string;           // 상품명
   price: number;          // 정가 (원화 기준 숫자)
   country: string;        // 국가 (여행지)
-  category: string;       // 카테고리 (과자, 초콜릿, 젤리·캔디, 음료, 견과류 등)
+  countrySlug: string;    // 나라 주소 (japan · taiwan · china · vietnam · other)
+  category: string;       // 카테고리 이름 (스낵·칩, 초콜릿 … lib/categories.ts 6가지)
+  categorySlug: string;   // 카테고리 주소 (snack · cookie …)
   imageUrl: string;       // 이미지 URL (무료 이미지 또는 대체 이미지)
   description: string;    // 상품 요약 설명
   isNew?: boolean;        // 신상품 여부 (선택)
  
   // ── 판매 정보 ──
-  discountPrice?: number; // 할인판매금액 (할인 없으면 생략)
-  rating: number;         // 평점 (0 ~ 5)
+  discountPrice?: number | null; // 할인판매금액 (할인 없으면 null)
+  rating: number;         // 평점 (0 ~ 5, 리뷰 평균)
   reviewCount: number;    // 리뷰수
   stock: number;          // 재고 수량
   isSoldOut: boolean;     // 품절 여부

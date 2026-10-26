@@ -1,25 +1,24 @@
-import { products } from "@/data/products";
+import { api, ApiError, type Page } from "@/lib/api";
 import { Product } from "@/types/product";
-import { CATEGORIES, categoryOf } from "@/lib/categories";
+import { CATEGORIES } from "@/lib/categories";
 
 // ── 상품 상태 ──
-export const isSoldOut = (p: Product) => p.isSoldOut || p.stock === 0;
+type Priced = Pick<Product, "price" | "discountPrice">;
 
-export const hasDiscount = (p: Product) =>
-  p.discountPrice !== undefined && p.discountPrice < p.price;
+export const isSoldOut = (p: Pick<Product, "isSoldOut" | "stock">) => p.isSoldOut || p.stock === 0;
+
+// 할인가가 없으면 API 는 null 을 줘요 (null < 가격 은 true 라서 != null 로 꼭 먼저 확인)
+export const hasDiscount = (p: Priced) =>
+  p.discountPrice != null && p.discountPrice < p.price;
 
 // 실제로 결제하는 가격 (할인가가 있으면 할인가)
-export const salePrice = (p: Product) =>
+export const salePrice = (p: Priced) =>
   hasDiscount(p) ? (p.discountPrice as number) : p.price;
 
-export const discountRate = (p: Product) =>
+export const discountRate = (p: Priced) =>
   hasDiscount(p) ? Math.round((1 - salePrice(p) / p.price) * 100) : 0;
 
-export const getProduct = (id: number) => products.find((p) => p.id === id);
-
 // ── 나라 ──
-export const MAIN_COUNTRIES = ["일본", "대만", "중국", "베트남"];
-
 export const COUNTRY_FILTERS = [
   { slug: "japan", name: "일본" },
   { slug: "taiwan", name: "대만" },
@@ -27,9 +26,6 @@ export const COUNTRY_FILTERS = [
   { slug: "vietnam", name: "베트남" },
   { slug: "other", name: "그 외" },
 ];
-
-export const countrySlugOf = (p: Product) =>
-  COUNTRY_FILTERS.find((c) => c.name === p.country)?.slug ?? "other";
 
 // ── 카테고리 (lib/categories.ts의 6가지 과자 분류) ──
 export const CATEGORY_FILTERS = CATEGORIES.map((c) => ({ slug: c.slug, name: c.name }));
@@ -43,9 +39,6 @@ export const SORT_OPTIONS = [
   { slug: "new", name: "신상품순" },
 ];
 
-// 검색어 비교용: 소문자 + 띄어쓰기 제거 ("도쿄 바나나" = "도쿄바나나")
-const normalize = (text: string) => text.toLowerCase().replace(/\s+/g, "");
-
 export interface ProductQuery {
   q?: string;
   country?: string;
@@ -53,50 +46,41 @@ export interface ProductQuery {
   sort?: string;
 }
 
-// 검색 · 필터 · 정렬을 한 번에
-export function findProducts({ q, country, category, sort }: ProductQuery) {
-  const keyword = q ? normalize(q) : "";
+// ── API (검색 · 필터 · 정렬은 서버가 해요: GET /products) ──
 
-  let list = products.filter((p) => {
-    if (country) {
-      if (country === "other") {
-        if (MAIN_COUNTRIES.includes(p.country)) return false;
-      } else if (countrySlugOf(p) !== country) {
-        return false;
-      }
-    }
+// 상품이 60개라 한 번에 100개까지 받아요. 상품이 100개를 넘으면 화면에 페이지 이동을 붙여야 해요.
+const MAX_SIZE = 100;
 
-    if (category && categoryOf(p.id)?.slug !== category) return false;
+// 주소에 잘못된 값(?sort=abc)이 있어도 422 오류 대신 기본값으로 보여 주도록 걸러요
+export async function fetchProducts(query: ProductQuery & { ids?: number[] } = {}): Promise<Page<Product>> {
+  if (query.ids && query.ids.length === 0) return { items: [], total: 0, page: 1, size: MAX_SIZE, pages: 0 };
 
-    if (keyword) {
-      const haystack = normalize(
-        [p.name, p.country, p.category, categoryOf(p.id)?.name ?? "", p.manufacturer, p.foodType, p.description].join(" ")
-      );
-      if (!haystack.includes(keyword)) return false;
-    }
+  const params = new URLSearchParams({ size: String(MAX_SIZE) });
+  const q = query.q?.trim().slice(0, 50);
+  if (q) params.set("q", q);
+  if (COUNTRY_FILTERS.some((c) => c.slug === query.country)) params.set("country", query.country!);
+  if (query.category) params.set("category", query.category.slice(0, 30));
+  if (SORT_OPTIONS.some((o) => o.slug === query.sort)) params.set("sort", query.sort!);
+  if (query.ids) params.set("ids", query.ids.slice(0, MAX_SIZE).join(","));
 
-    return true;
-  });
+  return api<Page<Product>>(`/products?${params}`);
+}
 
-  // 검색어가 상품명에 있으면 더 위로
-  const nameScore = (p: Product) =>
-    keyword && normalize(p.name).includes(keyword) ? 0 : 1;
+// 없는 상품(또는 숫자가 아닌 주소)이면 undefined → 화면에서 notFound()
+export async function fetchProduct(id: number): Promise<Product | undefined> {
+  if (!Number.isInteger(id) || id < 1) return undefined;
+  try {
+    return await api<Product>(`/products/${id}`);
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return undefined;
+    throw e;
+  }
+}
 
-  const sorters: Record<string, (a: Product, b: Product) => number> = {
-    recommend: (a, b) => nameScore(a) - nameScore(b) || b.rating - a.rating,
-    review: (a, b) => b.reviewCount - a.reviewCount,
-    low: (a, b) => salePrice(a) - salePrice(b),
-    high: (a, b) => salePrice(b) - salePrice(a),
-    new: (a, b) => Number(!!b.isNew) - Number(!!a.isNew) || b.id - a.id,
-  };
-  const sorter = sorters[sort ?? "recommend"] ?? sorters.recommend;
-
-  // 품절 상품은 어떤 정렬이든 맨 뒤로
-  list = [...list].sort(
-    (a, b) => Number(isSoldOut(a)) - Number(isSoldOut(b)) || sorter(a, b)
-  );
-
-  return list;
+// 카테고리별 상품 수 { snack: 16, … } (GET /categories)
+export async function fetchCategoryCounts(): Promise<Record<string, number>> {
+  const list = await api<{ slug: string; productCount: number }[]>("/categories");
+  return Object.fromEntries(list.map((c) => [c.slug, c.productCount]));
 }
 
 // 검색 화면의 추천 검색어

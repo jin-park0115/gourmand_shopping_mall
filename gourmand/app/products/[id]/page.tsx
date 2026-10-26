@@ -3,12 +3,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { products } from "@/data/products";
 import {
   COUNTRY_FILTERS,
-  countrySlugOf,
   discountRate,
-  getProduct,
+  fetchProduct,
+  fetchProducts,
   hasDiscount,
   isSoldOut,
   salePrice,
@@ -17,21 +16,17 @@ import {
 import HomeSection from "@/components/HomeSection";
 import ProductCard from "@/components/ProductCard";
 import ProductPurchase from "@/components/ProductPurchase";
+import ProductReviews from "@/components/ProductReviews";
 import ProductRow from "@/components/ProductRow";
 
 type DetailPageProps = {
   params: Promise<{ id: string }>;
 };
 
-// 상품 60개의 상세 주소를 미리 만들어 둠
-export function generateStaticParams() {
-  return products.map((p) => ({ id: String(p.id) }));
-}
-
 // 브라우저 탭 제목: "상품명 | 구르망"
 export async function generateMetadata({ params }: DetailPageProps): Promise<Metadata> {
   const { id } = await params;
-  const p = getProduct(Number(id));
+  const p = await fetchProduct(Number(id));
   return p
     ? { title: `${p.name} | 구르망 GOURMAND`, description: p.description }
     : { title: "구르망 GOURMAND" };
@@ -55,23 +50,20 @@ function Stars({ rating }: { rating: number }) {
 
 async function ProductDetail({ params }: DetailPageProps) {
   const { id } = await params;
-  const p = getProduct(Number(id));
+  const p = await fetchProduct(Number(id));
 
+  // 없는 상품(API 404) → app/not-found.tsx
   if (!p) notFound();
 
   const soldOut = isSoldOut(p);
   const price = salePrice(p);
-  const countrySlug = countrySlugOf(p);
+  const countrySlug = p.countrySlug;
   const countryName =
     COUNTRY_FILTERS.find((c) => c.slug === countrySlug)?.name ?? p.country;
 
-  // 같은 나라의 다른 간식 (품절은 뒤로, 평점 높은 순)
-  const related = products
-    .filter((other) => other.id !== p.id && countrySlugOf(other) === countrySlug)
-    .sort(
-      (a, b) =>
-        Number(isSoldOut(a)) - Number(isSoldOut(b)) || b.rating - a.rating
-    )
+  // 같은 나라의 다른 간식 (서버 추천순: 품절은 뒤로, 평점 높은 순)
+  const related = (await fetchProducts({ country: countrySlug })).items
+    .filter((other) => other.id !== p.id)
     .slice(0, 8);
 
   // 상품 정보 표
@@ -135,7 +127,7 @@ async function ProductDetail({ params }: DetailPageProps) {
             {p.name}
           </h1>
 
-          <div className="mt-2 flex items-center gap-1.5 text-sm">
+          <a href="#reviews" className="mt-2 flex w-fit items-center gap-1.5 text-sm hover:underline">
             <Stars rating={p.rating} />
             {p.reviewCount > 0 ? (
               <span className="text-gray-600">
@@ -145,7 +137,7 @@ async function ProductDetail({ params }: DetailPageProps) {
             ) : (
               <span className="text-gray-500">아직 리뷰가 없어요</span>
             )}
-          </div>
+          </a>
 
           {/* 가격 */}
           <div className="mt-5 flex flex-wrap items-baseline gap-x-2">
@@ -204,6 +196,8 @@ async function ProductDetail({ params }: DetailPageProps) {
           </tbody>
         </table>
       </section>
+
+      <ProductReviews productId={p.id} />
 
       {/* 같은 나라 간식 */}
       {related.length > 0 && (

@@ -3,27 +3,14 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCart } from "@/components/CartProvider";
-import {
-  createOrder,
-  getSavedShipping,
-  saveShipping,
-  type OrderInput,
-} from "@/lib/orderStorage";
+import { useAuth } from "@/components/AuthProvider";
+import { cartErrorMessage, useCart } from "@/components/CartProvider";
+import { type OrderInput } from "@/lib/orderStorage";
+import { fetchSavedAddress, placeOrder, shippingErrorField } from "@/lib/orders";
 
 type Errors = Partial<Record<keyof OrderInput, string>>;
 
-// 시연용 미리 채워 둔 배송 정보 (시연이 끝나면 DEMO_PREFILL을 false로 바꾸면 빈칸으로 돌아가요)
-const DEMO_PREFILL = true;
-
-const DEMO_SHIPPING: OrderInput = {
-  buyerName: "윤강",
-  phone: "010-1223-4545",
-  zipcode: "06236",
-  address1: "서울특별시 강남구 테헤란로 123",
-  address2: "구르망빌딩 3층",
-};
-
+// 빈칸으로 시작해요. 지난 주문 때 저장한 배송 정보는 "저장된 배송 정보 불러오기"로 채워요
 const EMPTY: OrderInput = {
   buyerName: "",
   phone: "",
@@ -31,8 +18,6 @@ const EMPTY: OrderInput = {
   address1: "",
   address2: "",
 };
-
-const INITIAL: OrderInput = DEMO_PREFILL ? DEMO_SHIPPING : EMPTY;
 
 function validate(form: OrderInput): Errors {
   const errors: Errors = {};
@@ -50,17 +35,40 @@ const inputClass =
 
 export default function CheckoutForm() {
   const router = useRouter();
-  const { items, hydrated, totalCount, totalPrice, clearCart } = useCart();
-  const [form, setForm] = useState<OrderInput>(INITIAL);
+  const { member } = useAuth();
+  const { items, hydrated, totalCount, totalPrice, orderable, reload } = useCart();
+  const [form, setForm] = useState<OrderInput>(EMPTY);
   const [errors, setErrors] = useState<Errors>({});
   const [submitted, setSubmitted] = useState(false);
-  const [saved, setSaved] = useState<OrderInput | null>(null);
   const [remember, setRemember] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // 저장된 배송 정보가 있는지 확인 (브라우저에서만 가능해서 effect 안에서 읽어요)
+  // 저장된 배송 정보는 내 계정(서버)에 있어요. 누구의 것인지 같이 저장해서 회원이 바뀌면 쓰지 않아요
+  const memberId = member?.id ?? null;
+  const [savedFor, setSavedFor] = useState<{ memberId: number; value: OrderInput | null } | null>(null);
   useEffect(() => {
-    setSaved(getSavedShipping());
-  }, []);
+    if (memberId === null) return;
+    let cancelled = false;
+    fetchSavedAddress().then(
+      (value) => !cancelled && setSavedFor({ memberId, value }),
+      () => !cancelled && setSavedFor({ memberId, value: null }) // 못 불러오면 버튼만 숨겨요
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [memberId]);
+  const saved = savedFor?.memberId === memberId ? savedFor.value : null;
+
+  // 주문을 마치고 다른 화면으로 가도 이 화면의 상태가 보존돼요 (Next cacheComponents).
+  // 그대로 두면 뒤로 가기로 돌아왔을 때 '주문하는 중…' · 0원으로 멈춰서, 화면을 떠날 때 처음 상태로 되돌려요
+  useEffect(
+    () => () => {
+      setSubmitting(false);
+      setSubmitted(false);
+    },
+    []
+  );
 
   if (!hydrated) {
     return <p className="py-20 text-center text-gray-500">불러오는 중...</p>;
@@ -81,6 +89,21 @@ export default function CheckoutForm() {
     );
   }
 
+  // 주소창으로 바로 들어와도 품절 · 재고 초과 상품은 주문하지 못하게 (서버 검증은 주문 API SCRUM-29)
+  if (!orderable && !submitted) {
+    return (
+      <div className="py-20 text-center">
+        <p className="text-gray-600">품절됐거나 재고보다 많이 담은 상품이 있어요. 장바구니에서 정리해 주세요.</p>
+        <Link
+          href="/cart"
+          className="mt-4 inline-block rounded-lg bg-brand px-5 py-2.5 font-semibold text-white transition hover:bg-brand-dark"
+        >
+          장바구니로 가기
+        </Link>
+      </div>
+    );
+  }
+
   const handleChange =
     (key: keyof OrderInput) => (e: React.ChangeEvent<HTMLInputElement>) => {
       setForm((prev) => ({ ...prev, [key]: e.target.value }));
@@ -93,27 +116,29 @@ export default function CheckoutForm() {
     setErrors({});
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const found = validate(form);
     setErrors(found);
+    setSubmitError(null);
     if (Object.keys(found).length > 0) return;
 
-    setSubmitted(true);
-    createOrder(
-      form,
-      items.map((i) => ({
-        id: i.id,
-        name: i.name,
-        imageUrl: i.imageUrl,
-        price: i.price,
-        quantity: i.quantity,
-      })),
-      totalPrice
-    );
-    if (remember) saveShipping(form);
-    clearCart();
-    router.push("/order/complete");
+    setSubmitting(true);
+    try {
+      // 서버가 장바구니로 주문을 만들고 장바구니를 비워요 (재고 차감 · 결제완료까지 한 번에, SCRUM-29)
+      const order = await placeOrder(form, remember);
+      setSubmitted(true); // 비워진 장바구니로 "비어 있어요" 화면이 깜빡이지 않게
+      reload(); // 헤더 장바구니 숫자도 0 으로
+      // replace: 주문 완료에서 뒤로 가기를 누르면 끝난 주문서가 아니라 그 전 화면(장바구니)으로
+      router.replace(`/order/complete?orderId=${order.orderId}`);
+    } catch (err) {
+      // 배송 정보 문제면 해당 칸 아래에, 그 밖의 이유(재고 부족 등)는 버튼 위에 서버 문구 그대로
+      const field = shippingErrorField(err);
+      if (field) setErrors({ [field]: cartErrorMessage(err) });
+      else setSubmitError(cartErrorMessage(err));
+      reload(); // 재고가 바뀌었을 수 있어서 장바구니를 다시 받아요 (품절 · 재고 초과면 주문서 대신 장바구니 안내로)
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -210,7 +235,7 @@ export default function CheckoutForm() {
               onChange={(e) => setRemember(e.target.checked)}
               className="h-4 w-4"
             />
-            이 배송 정보를 다음 주문에도 사용하기
+            이 배송 정보를 내 계정에 저장하고 다음 주문에도 사용하기
           </label>
         </div>
       </section>
@@ -242,11 +267,18 @@ export default function CheckoutForm() {
           </span>
         </div>
 
+        {submitError && (
+          <p role="alert" className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+            {submitError}
+          </p>
+        )}
+
         <button
           type="submit"
-          className="mt-5 w-full rounded-lg bg-brand py-3 font-semibold text-white transition hover:bg-brand-dark"
+          disabled={submitting}
+          className="mt-5 w-full rounded-lg bg-brand py-3 font-semibold text-white transition hover:bg-brand-dark disabled:bg-gray-300"
         >
-          주문 완료하기
+          {submitting ? "주문하는 중…" : "주문 완료하기"}
         </button>
       </aside>
     </form>

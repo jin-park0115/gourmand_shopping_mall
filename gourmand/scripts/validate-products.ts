@@ -15,7 +15,7 @@ products.forEach((p) => {
 
   if (!Number.isInteger(p.id) || p.id <= 0) errors.push(`${tag} id는 1 이상의 정수여야 합니다.`);
   if (p.price <= 0) errors.push(`${tag} 가격이 0 이하입니다.`);
-  if (p.discountPrice !== undefined && p.discountPrice >= p.price)
+  if (p.discountPrice != null && p.discountPrice >= p.price)
     errors.push(`${tag} 할인가가 정가보다 크거나 같습니다.`);
   if (p.rating < 0 || p.rating > 5) errors.push(`${tag} 평점이 0~5 범위를 벗어났습니다.`);
   if (p.reviewCount < 0 || p.stock < 0) errors.push(`${tag} 리뷰수나 재고가 음수입니다.`);
