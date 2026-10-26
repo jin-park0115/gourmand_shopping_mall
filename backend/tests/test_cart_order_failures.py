@@ -264,3 +264,29 @@ async def test_422_not_400_for_broken_json(client, db_session, ctx) -> None:
     )
     _assert_error(res, 422, "VALIDATION_ERROR")
     assert await _snapshot(db_session) == before
+
+
+# ── SCRUM-41: 로그인 → 성공 → 로그아웃 → 같은 토큰 401 ──
+
+
+async def test_logged_out_token_is_401_on_every_cart_order_request(client, db_session, ctx) -> None:
+    kim = ctx["kim"]
+    # 로그인한 토큰으로 보호 API 성공
+    assert (await client.get("/cart", headers=kim)).status_code == 200
+    assert (await client.post("/cart/items", json={"productId": ctx["cookie"], "quantity": 1}, headers=kim)).status_code == 200
+    assert (await client.get(f"/orders/{ctx['order']}", headers=kim)).status_code == 200
+
+    # 로그아웃 (그 토큰을 블랙리스트에)
+    assert (await client.post("/auth/logout", headers=kim)).status_code == 204
+    before = await _snapshot(db_session)
+
+    # 같은 토큰으로 다시: 조회 · 변경 · 주문 · 취소 모두 401, DB 그대로 (장바구니 3개 · 주문 접수 그대로)
+    for method, path, body in _writes(ctx):
+        res = await client.request(method, path, json=body, headers=kim)
+        _assert_error(res, 401, "UNAUTHORIZED", "로그아웃된 토큰이에요. 다시 로그인해 주세요.")
+    assert await _snapshot(db_session) == before
+
+    # 다시 로그인하면 새 토큰으로는 그대로 쓸 수 있어요 (장바구니도 남아 있음)
+    token = (await client.post("/auth/login", data={"username": "kim@test.com", "password": PASSWORD})).json()["access_token"]
+    res = await client.get("/cart", headers={"Authorization": f"Bearer {token}"})
+    assert res.status_code == 200 and res.json()["totalCount"] == 3

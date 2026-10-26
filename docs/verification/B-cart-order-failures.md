@@ -1,4 +1,4 @@
-# [B 장바구니·주문] 실패 케이스 검증 (SCRUM-40)
+# [B 장바구니·주문] 실패 케이스 · 로그아웃 후 401 검증 (SCRUM-40 · 41)
 
 확인일: 2026-10-26 · 로컬 임시 DB(마이그레이션 + 시드)로 띄운 Swagger(`/docs`) · 화면, DB 재조회
 자동 테스트: [`backend/tests/test_cart_order_failures.py`](../../backend/tests/test_cart_order_failures.py) (28개), [`test_cart_api.py`](../../backend/tests/test_cart_api.py), [`test_order_api.py`](../../backend/tests/test_order_api.py), [`test_my_orders_api.py`](../../backend/tests/test_my_orders_api.py)
@@ -10,6 +10,7 @@
 | 401 | 토큰 없이 장바구니 · 주문 요청 (조회 포함 9개 전부) | `UNAUTHORIZED` / 로그인이 필요해요. | 그대로 |
 | 401 | 깨진 · 위조된 토큰, 없는 회원 | `UNAUTHORIZED` / 로그인 정보가 올바르지 않아요. 다시 로그인해 주세요. | 그대로 |
 | 401 | 만료된 토큰 | `UNAUTHORIZED` / 로그인이 만료됐어요. 다시 로그인해 주세요. | 그대로 |
+| 401 | **로그아웃한 같은 토큰** (SCRUM-41) | `UNAUTHORIZED` / 로그아웃된 토큰이에요. 다시 로그인해 주세요. | 그대로 |
 | 403 | 남의 주문 조회 · 취소 | `FORBIDDEN` / 본인 주문만 볼 수 있어요. | 그대로 |
 | 404 | 없는 상품 담기 | `NOT_FOUND` / 상품을 찾을 수 없어요. | — |
 | 404 | 장바구니에 없는 상품 수량 변경 · 빼기 (남의 장바구니 상품 포함) | `NOT_FOUND` / 장바구니에 없는 상품이에요. | 그대로 |
@@ -104,6 +105,46 @@
 -- 409 후: 배송중 · 결제완료 그대로, 재고 복구 없음 (8)
  3        | customer@gourmand.com | 배송중 | 49800       | 결제완료
  stock: product 30 = 8
+```
+
+## SCRUM-41 로그인 → 보호 API 성공 → 로그아웃 → 같은 토큰 401
+
+자동 테스트 `test_logged_out_token_is_401_on_every_cart_order_request`: 로그인 → 장바구니 조회 · 담기 · 주문 조회 성공 → `POST /auth/logout` 204 → **같은 토큰으로 장바구니 · 주문 요청 9개 전부 401**, DB 그대로 → 다시 로그인하면 새 토큰으로 장바구니가 그대로 보여요.
+
+### Swagger
+`Authorize`(customer@gourmand.com) → 담기 200 → `POST /auth/logout` 204 → 같은 토큰으로 담기 · 주문 401
+
+| 1. 담기 200 | 2. 로그아웃 204 |
+|---|---|
+| ![200](../images/scrum-41/swagger-41-1-add-200.png) | ![204](../images/scrum-41/swagger-41-2-logout-204.png) |
+
+| 3. 같은 토큰 담기 401 | 4. 같은 토큰 주문 401 |
+|---|---|
+| ![401 cart](../images/scrum-41/swagger-41-3-add-401.png) | ![401 order](../images/scrum-41/swagger-41-4-order-401.png) |
+
+```
+-- 1. 담기 성공 뒤
+ email                 | product_id | quantity
+ customer@gourmand.com | 30         | 1
+ logged_out_tokens = 0
+-- 2. 로그아웃 뒤: 그 토큰이 블랙리스트에
+ logged_out_tokens = 1
+-- 3. 같은 토큰으로 담기 · 주문 401 뒤: 장바구니 1개 그대로, 주문 0건
+ customer@gourmand.com | 30         | 1
+ orders = 0
+```
+
+### 화면
+장바구니를 보던 중 **다른 곳에서 같은 토큰이 로그아웃**됨 → `+` 를 누르면 서버 401 → 저장된 토큰을 지우고 로그인 화면(`?next=/cart`)으로. 다시 로그인하면 장바구니로 돌아와 1개 그대로예요.
+
+| 로그아웃 전 (장바구니 1개) | `+` 누른 뒤 → 로그인 화면 |
+|---|---|
+| ![cart](../images/scrum-41/screen-41-1-cart.png) | ![login](../images/scrum-41/screen-41-2-login.png) |
+
+```
+-- + 시도 뒤: 장바구니 1개 그대로 (2개로 안 바뀜)
+ customer@gourmand.com | 30         | 1
+ logged_out_tokens = 2   (Swagger 토큰 + 화면 토큰)
 ```
 
 ## 화면
