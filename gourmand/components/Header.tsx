@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Suspense } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import CartBadge from "@/components/CartBadge";
 import { useAuth } from "@/components/AuthProvider";
 import { loginHref } from "@/lib/api";
@@ -20,6 +20,7 @@ function AuthMenu(props: { className: string }) {
 function AuthMenuInner({ className }: { className: string }) {
   const { member, ready, logout } = useAuth();
   const pathname = usePathname();
+  const router = useRouter();
   if (!ready) return null;
 
   if (!member) {
@@ -29,10 +30,23 @@ function AuthMenuInner({ className }: { className: string }) {
       </Link>
     );
   }
+  // 로그아웃하면 홈으로 (마이페이지 · 장바구니처럼 로그인해야 보이는 화면에 빈 안내만 남지 않게)
+  const onLogout = async () => {
+    await logout();
+    router.replace("/");
+  };
   return (
-    <button type="button" onClick={logout} className={className} title={`${member.name}님 로그아웃`}>
-      로그아웃
-    </button>
+    <>
+      {/* 관리자가 쇼핑몰 화면을 보다가 관리자 화면으로 돌아갈 수 있게 */}
+      {member.role === "admin" && (
+        <Link href="/admin" className={className}>
+          관리자
+        </Link>
+      )}
+      <button type="button" onClick={onLogout} className={className} title={`${member.name}님 로그아웃`}>
+        로그아웃
+      </button>
+    </>
   );
 }
 
@@ -194,7 +208,9 @@ export default function Header() {
             className="h-10 w-auto"
           />
         </Link>
-        <AuthMenu className="absolute right-3 top-1/2 -translate-y-1/2 text-[13px] font-semibold text-gray-600" />
+        <div className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-3">
+          <AuthMenu className="text-[13px] font-semibold text-gray-600" />
+        </div>
       </div>
     </header>
   );
