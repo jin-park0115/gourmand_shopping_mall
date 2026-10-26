@@ -112,7 +112,8 @@ export default function CheckoutForm() {
       totalPrice
     );
     if (remember) saveShipping(form);
-    clearCart();
+    // 주문 저장은 아직 브라우저(orderStorage)라 서버 장바구니만 비워요. 주문 API 전환은 SCRUM-30
+    clearCart().catch(() => {});
     router.push("/order/complete");
   };
 

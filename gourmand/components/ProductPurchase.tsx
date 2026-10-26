@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 
-import { useCart } from "@/components/CartProvider";
+import { cartErrorMessage, useCart } from "@/components/CartProvider";
 import { Product } from "@/types/product";
 
 // 상세 페이지의 수량 선택 + 장바구니 담기
@@ -19,19 +19,29 @@ export default function ProductPurchase({
   const { addItem, items } = useCart();
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   // 이미 장바구니에 있는 수량까지 고려해서 최대 수량 제한
   const inCart = items.find((i) => i.id === p.id)?.quantity ?? 0;
   const maxQuantity = Math.max(0, p.stock - inCart);
   const reachedLimit = maxQuantity === 0;
 
-  function handleAdd() {
-    addItem(
-      { id: p.id, name: p.name, imageUrl: p.imageUrl, price, stock: p.stock },
-      quantity
-    );
-    setAdded(true);
-    setQuantity(1);
+  async function handleAdd() {
+    setBusy(true);
+    setError(null);
+    setAdded(false);
+    try {
+      // 로그인하지 않았으면 로그인 화면으로 이동해요 (false)
+      if (await addItem(p.id, quantity)) {
+        setAdded(true);
+        setQuantity(1);
+      }
+    } catch (e) {
+      setError(cartErrorMessage(e));
+    } finally {
+      setBusy(false);
+    }
   }
 
   if (soldOut) {
@@ -90,14 +100,15 @@ export default function ProductPurchase({
       <button
         type="button"
         onClick={handleAdd}
-        disabled={reachedLimit}
+        disabled={reachedLimit || busy}
         className="mt-3 w-full rounded-xl bg-brand py-4 text-base font-bold text-white transition hover:bg-brand-dark active:scale-[0.99] disabled:bg-gray-300"
       >
         장바구니 담기
       </button>
 
-      {/* 담은 뒤 안내 */}
+      {/* 담은 뒤 안내 · 실패 이유 */}
       <div aria-live="polite">
+        {error && <p className="mt-3 text-sm text-red-500">{error}</p>}
         {added && (
           <div className="mt-3 flex items-center justify-between rounded-xl border border-brand-line bg-brand-soft px-4 py-3 text-sm">
             <span className="font-semibold text-brand">장바구니에 담았어요 ✓</span>

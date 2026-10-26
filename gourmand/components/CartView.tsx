@@ -1,7 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { useCart } from "@/components/CartProvider";
+import { useAuth } from "@/components/AuthProvider";
+import { cartErrorMessage, useCart } from "@/components/CartProvider";
+import { loginHref } from "@/lib/api";
 
 export default function CartView() {
     const {
@@ -13,8 +16,24 @@ export default function CartView() {
         removeItem,
         clearCart,
     } = useCart();
+    const { member } = useAuth();
+    const [error, setError] = useState<string | null>(null);
+    const [busy, setBusy] = useState(false);
 
-    // sessionStorage를 읽기 전에는 빈 장바구니로 깜빡이지 않게 대기
+    // 서버에 바꾸는 동안 버튼을 잠그고, 실패하면 서버가 알려 준 이유를 보여 줘요
+    async function run(action: () => Promise<void>) {
+        setBusy(true);
+        setError(null);
+        try {
+            await action();
+        } catch (e) {
+            setError(cartErrorMessage(e));
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    // 로그인 확인 · 서버에서 불러오기 전에는 빈 장바구니로 깜빡이지 않게 대기
     if (!hydrated) {
         return <p className="mt-6 text-sm text-gray-500">장바구니를 불러오는 중이에요…</p>;
     }
@@ -22,12 +41,14 @@ export default function CartView() {
     if (items.length === 0) {
         return (
             <div className="mt-8 rounded-xl border border-gray-200 py-16 text-center">
-                <p className="text-gray-600">장바구니가 비어 있어요.</p>
+                <p className="text-gray-600">
+                    {member ? "장바구니가 비어 있어요." : "로그인하면 장바구니를 쓸 수 있어요."}
+                </p>
                 <Link
-                    href="/"
+                    href={member ? "/" : loginHref("/cart")}
                     className="mt-4 inline-block rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-dark"
                 >
-                    쇼핑 계속하기
+                    {member ? "쇼핑 계속하기" : "로그인하기"}
                 </Link>
             </div>
         );
@@ -41,12 +62,19 @@ export default function CartView() {
                     <span className="text-gray-600">총 {totalCount}개</span>
                     <button
                         type="button"
-                        onClick={clearCart}
-                        className="text-gray-500 hover:text-gray-900"
+                        onClick={() => run(clearCart)}
+                        disabled={busy}
+                        className="text-gray-500 hover:text-gray-900 disabled:text-gray-300"
                     >
                         전체 비우기
                     </button>
                 </div>
+
+                {error && (
+                    <p role="alert" className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+                        {error}
+                    </p>
+                )}
 
                 <ul className="divide-y divide-gray-200">
                     {items.map((item) => (
@@ -64,7 +92,8 @@ export default function CartView() {
                                     </p>
                                     <button
                                         type="button"
-                                        onClick={() => removeItem(item.id)}
+                                        onClick={() => run(() => removeItem(item.id))}
+                                        disabled={busy}
                                         aria-label={`${item.name} 삭제`}
                                         className="shrink-0 text-sm text-gray-400 hover:text-gray-900"
                                     >
@@ -77,8 +106,8 @@ export default function CartView() {
                                     <div className="flex items-center rounded-lg border border-gray-300 text-sm">
                                         <button
                                             type="button"
-                                            onClick={() => setQuantity(item.id, item.quantity - 1)}
-                                            disabled={item.quantity <= 1}
+                                            onClick={() => run(() => setQuantity(item.id, item.quantity - 1))}
+                                            disabled={busy || item.quantity <= 1}
                                             aria-label="수량 줄이기"
                                             className="px-3 py-1.5 disabled:text-gray-300"
                                         >
@@ -87,8 +116,8 @@ export default function CartView() {
                                         <span className="min-w-8 text-center">{item.quantity}</span>
                                         <button
                                             type="button"
-                                            onClick={() => setQuantity(item.id, item.quantity + 1)}
-                                            disabled={item.quantity >= item.stock}
+                                            onClick={() => run(() => setQuantity(item.id, item.quantity + 1))}
+                                            disabled={busy || item.quantity >= item.stock}
                                             aria-label="수량 늘리기"
                                             className="px-3 py-1.5 disabled:text-gray-300"
                                         >
@@ -106,7 +135,15 @@ export default function CartView() {
                                     </div>
                                 </div>
 
-                                {item.quantity >= item.stock && (
+                                {item.isSoldOut ? (
+                                    <p className="mt-1 text-xs text-red-500">
+                                        담아 두는 사이 품절됐어요. 삭제한 뒤 주문해 주세요
+                                    </p>
+                                ) : item.quantity > item.stock ? (
+                                    <p className="mt-1 text-xs text-red-500">
+                                        재고가 {item.stock}개로 줄었어요. 수량을 줄여 주세요
+                                    </p>
+                                ) : item.quantity === item.stock && (
                                     <p className="mt-1 text-xs text-red-500">
                                         재고({item.stock}개)까지만 담을 수 있어요
                                     </p>
