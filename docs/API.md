@@ -34,7 +34,7 @@
 | 405 | `METHOD_NOT_ALLOWED` | 경로는 있지만 메서드가 다름 |
 | 409 | `BUSINESS_RULE_VIOLATION` | 지금 상태에서 허용되지 않는 요청 (상태 전이 위반 등) |
 | 409 | `CONFLICT` | 이미 있는 데이터와 충돌 (같은 이메일 가입, 중복 리뷰) |
-| 422 | `VALIDATION_ERROR` | 형식 오류 (타입 · 길이 · 필수 값). 필드별 내용은 `errors` 배열에 |
+| 422 | `VALIDATION_ERROR` | 형식 오류 (타입 · 길이 · 필수 값). `message`는 `필드: 우리말 문장` (예: `rating: 5 이하로 입력해 주세요.`), 필드별 원문은 `errors` 배열에 |
 | 422 | `INVALID_VALUE` | 형식은 맞지만 업무 규칙상 틀린 값 (지원하지 않는 택배사 등) |
 | 500 | `INTERNAL_SERVER_ERROR` | 예상하지 못한 오류. 내부 정보는 응답에 싣지 않아요 |
 

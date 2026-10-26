@@ -88,5 +88,5 @@ Swagger `Authorize`로 로그인 → 위 201 작성 → `POST /auth/logout` 204 
 
 ## 남은 점
 
-- 422 형식 오류 `message`가 Pydantic 영어 문장이에요 (예: `rating: Input should be less than or equal to 5`). 화면은 보내기 전에 막아서 사용자가 보지는 않아요. 공통 오류 처리라 팀에서 정하면 같이 바꿔요.
+- ~~422 형식 오류 `message`가 Pydantic 영어 문장~~ → 팀 합의(필드 이름은 영어 유지)대로 우리말로 바꿨어요: `rating: 5 이하로 입력해 주세요.` (위 Swagger 422 캡처는 바뀐 뒤 화면)
 - 화면에서 409가 나면 메시지만 보여 주고 목록은 다시 불러오지 않아요. 새로고침하면 내 리뷰가 보여요.
