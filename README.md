@@ -4,7 +4,7 @@
 
 화면만 있던 쇼핑몰(크런치클럽 팀)을 **인수해서**, FastAPI + PostgreSQL 백엔드와 회원 · 리뷰 · 장바구니 · 주문 · 관리자 기능을 붙인 프로젝트입니다.
 
-인수 팀: **박진**(팀장, 상품 · 리뷰) · **윤강**(장바구니 · 주문) · **안중섭**(관리자 주문)
+인수 팀: **안중섭**(팀장, 관리자 주문) · **박진**(상품 · 리뷰) · **윤강**(장바구니 · 주문)
 
 <br>
 
@@ -246,7 +246,7 @@ app/
 | UC | 담당 | 백엔드 API | 화면 | Jira |
 |---|---|---|---|---|
 | **A. 상품 · 리뷰** | 박진 | `GET /products` (검색 · 나라/카테고리 필터 · 정렬 5종 · 페이지), `GET /products/{id}`, `GET /categories`, 리뷰 `GET · POST /products/{id}/reviews`, `PATCH · DELETE /reviews/{id}` | 상품 목록 · 상세 · 나라 · 카테고리 · 검색을 API로 전환, 상세 리뷰 (작성 · 수정 · 삭제 · 더보기), 로그인 · 회원가입 화면과 API 클라이언트 | SCRUM-20~26, 37, 38 |
-| **B. 장바구니 · 주문** | 윤강 | 회원 `POST /auth/signup · login · logout`, `GET /auth/me`, 장바구니 `GET · DELETE /cart`, `POST /cart/items`, `PATCH · DELETE /cart/items/{id}`, 주문 `POST /orders`, `GET /orders/{id}` | 장바구니 · 주문하기 · 주문 완료를 API로 전환 | SCRUM-18, 19, 27~31, 40, 41 |
+| **B. 장바구니 · 주문** | 윤강 | 회원 `POST /auth/signup · login · logout`, `GET /auth/me`, 장바구니 `GET · DELETE /cart`, `POST /cart/items`, `PATCH · DELETE /cart/items/{id}`, 주문 `POST /orders`, `GET /orders` (내 주문 · 상태 · 기간 필터), `GET /orders/{id}`, `POST /orders/{id}/cancel` | 장바구니 · 주문하기 · 주문 완료 · 마이페이지를 API로 전환 | SCRUM-18, 19, 27~31, 40, 41 |
 | **C. 관리자 주문** | 안중섭 | `GET /admin/orders` (상태 · 기간 · 주문자 검색), `GET /admin/orders/summary`, `GET /admin/orders/{id}`, `PATCH /admin/orders/{id}/status` (취소 시 재고 복구) | 관리자 대시보드를 API로 전환, 관리자 로그인 가드 | SCRUM-32~36, 43, 44 |
 
 **공통 작업**
@@ -274,7 +274,7 @@ Jira 키 전체 표: [docs/jira-keys.md](docs/jira-keys.md)
 | 장바구니 | ✅ API | 로그인 필요 |
 | 주문하기 · 주문 완료 | ✅ API | 재고 차감 · 주문 생성을 한 트랜잭션으로 |
 | 관리자 주문 목록 · 요약 · 상세 · 상태 변경 | ✅ API | 관리자 계정만 |
-| 마이페이지 주문 내역 · 고객 취소 | 🚧 진행 중 (SCRUM-31) | 화면은 아직 브라우저 저장소(`lib/orderStorage.ts`)를 읽어요 |
+| 마이페이지 주문 내역 · 고객 취소 | ✅ API | 상태 · 기간 필터, 배송 전 주문만 취소 (재고 복구) |
 | 배송지 기억 | 브라우저 저장소 | 주문서 입력 편의용 (`localStorage`) |
 | PICK 큐레이션 | 정적 데이터 (의도) | `data/picks.ts`, 팀원 추천 목록이라 DB에 두지 않았어요 |
 | 결제 · 찜 · 리뷰 사진 | ❌ 하지 않음 | 범위 밖 |
