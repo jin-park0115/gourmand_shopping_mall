@@ -40,7 +40,8 @@ class Settings(BaseSettings):
 
     @property
     def cors_origin_list(self) -> list[str]:
-        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+        # 브라우저 Origin 에는 끝 "/" 가 없어요. 대시보드에 "https://x.vercel.app/" 로 넣어도 맞게 떼요
+        return [o.strip().rstrip("/") for o in self.cors_origins.split(",") if o.strip()]
 
 
 @lru_cache
