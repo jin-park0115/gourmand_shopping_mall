@@ -11,6 +11,7 @@ import {
 
 import { useAuth } from "@/components/AuthProvider";
 import { api, ApiError, askLogin } from "@/lib/api";
+import { LEGACY_SHIPPING_KEY } from "@/lib/orderStorage";
 
 // 장바구니는 서버에 저장돼요 (SCRUM-27 /cart). 로그인한 회원만 쓸 수 있어요
 export interface CartItem {
@@ -75,6 +76,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     try {
       sessionStorage.removeItem(LEGACY_STORAGE_KEY);
+      localStorage.removeItem(LEGACY_SHIPPING_KEY); // 브라우저에 남은 예전 배송 정보 (다른 회원에게 보이지 않게)
     } catch {
       // 지우지 못해도 더는 읽지 않아요
     }

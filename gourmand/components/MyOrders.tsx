@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
 import { ApiError, loginHref, type Page } from "@/lib/api";
-import { ORDER_STATUSES, savedShippingSnapshot, type OrderInput } from "@/lib/orderStorage";
-import { CANCELLABLE_STATUSES, cancelOrder, fetchMyOrders, type Order } from "@/lib/orders";
+import { ORDER_STATUSES, type OrderInput } from "@/lib/orderStorage";
+import { CANCELLABLE_STATUSES, cancelOrder, fetchMyOrders, fetchSavedAddress, type Order } from "@/lib/orders";
 
 const PAGE_SIZE = 5;
 
@@ -30,8 +30,6 @@ function formatDate(value: string) {
   return value.slice(0, 16).replace("T", " ").replaceAll("-", ".");
 }
 
-const noop = () => () => {};
-
 type Loaded = { key: string; page: Page<Order> | null; error: string | null };
 
 export default function MyOrders() {
@@ -44,15 +42,21 @@ export default function MyOrders() {
   const [cancelling, setCancelling] = useState<number | null>(null);
   const [notice, setNotice] = useState<{ text: string; error: boolean } | null>(null);
 
-  // 저장된 배송 정보는 이 브라우저의 localStorage 에만 있어요 (서버 렌더링 때는 없음)
-  const shippingRaw = useSyncExternalStore(noop, savedShippingSnapshot, () => null);
-  const shipping = useMemo<OrderInput | null>(() => {
-    try {
-      return shippingRaw ? JSON.parse(shippingRaw) : null;
-    } catch {
-      return null;
-    }
-  }, [shippingRaw]);
+  // 저장된 배송 정보는 내 계정(서버)에 있어요. 누구의 것인지 같이 저장해서 회원이 바뀌면 쓰지 않아요
+  const memberId = member?.id ?? null;
+  const [savedFor, setSavedFor] = useState<{ memberId: number; value: OrderInput | null } | null>(null);
+  useEffect(() => {
+    if (memberId === null) return;
+    let cancelled = false;
+    fetchSavedAddress().then(
+      (value) => !cancelled && setSavedFor({ memberId, value }),
+      () => !cancelled && setSavedFor({ memberId, value: null })
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [memberId]);
+  const shipping = savedFor?.memberId === memberId ? savedFor.value : null;
 
   const from = monthsAgo(months);
   const key = JSON.stringify({ status, from, page, reloadKey });
@@ -147,7 +151,7 @@ export default function MyOrders() {
           </dl>
         ) : (
           <p className="mt-3 text-sm text-gray-500">
-            아직 저장된 배송 정보가 없어요. 주문할 때 입력하면 여기에 저장돼요.
+            아직 저장된 배송 정보가 없어요. 주문할 때 &lsquo;내 계정에 저장&rsquo;을 고르면 여기에 보여요.
           </p>
         )}
       </section>
@@ -275,6 +279,14 @@ export default function MyOrders() {
                     </span>
                     <span className="font-bold text-gray-900">{order.totalPrice.toLocaleString()}원</span>
                   </div>
+
+                  {order.courier && order.trackingNo && (
+                    <p className="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                      <span className="text-gray-500">택배사</span> {order.courier}
+                      <span className="ml-3 text-gray-500">운송장 번호</span>{" "}
+                      <span className="font-semibold tabular-nums">{order.trackingNo}</span>
+                    </p>
+                  )}
 
                   <p className="mt-3 text-xs text-gray-500">
                     배송지: {order.recipient} · {order.phone} · ({order.zipcode}) {order.address1} {order.address2}

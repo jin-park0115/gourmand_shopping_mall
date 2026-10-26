@@ -8,7 +8,7 @@ from domain.order.status import OrderStatus, cancel_by_customer, received
 from domain.product.product import Product
 from infrastructure.admin.repositories import AdminOrderCommandRepository, OrderStatusHistoryRepository
 from infrastructure.cart.repositories import CartRepository
-from infrastructure.order.repositories import OrderRepository
+from infrastructure.order.repositories import OrderRepository, SavedAddressRepository
 from infrastructure.product.repositories import ProductRepository
 
 NOT_FOUND_MESSAGE = "주문을 찾을 수 없어요."
@@ -22,12 +22,14 @@ class OrderService:
         self.carts = CartRepository(session)
         self.products = ProductRepository(session)
         self.history = OrderStatusHistoryRepository(session)
+        self.addresses = SavedAddressRepository(session)
         # 주문 잠금 · 상품별 수량 · 결제취소는 관리자 취소(C, SCRUM-35)와 같은 함수를 써요
         self.order_commands = AdminOrderCommandRepository(session)
         self._now = now
 
-    async def place_order(self, member_id: int, shipping: ShippingInfo) -> Order:
+    async def place_order(self, member_id: int, shipping: ShippingInfo, *, save_address: bool = False) -> Order:
         """장바구니 → 주문. 재고 차감 · 주문 저장 · 결제완료 · 이력(접수) · 장바구니 비우기를 한 트랜잭션으로.
+        save_address 면 이 배송 정보를 내 계정의 저장된 배송지로 (다음 주문서에서 불러와요).
 
         재고가 하나라도 모자라면 이미 줄인 재고까지 전부 되돌리고 409 예요.
         """
@@ -55,8 +57,10 @@ class OrderService:
             )
             await self.history.add(order_id, received(changed_at=now))
 
-            # 5. 장바구니 비우기
+            # 5. 장바구니 비우기 (+ 배송지 저장)
             await self.carts.clear(member_id)
+            if save_address:
+                await self.addresses.save(member_id, shipping)
             await self.session.commit()
         except Exception:
             await self.session.rollback()
@@ -69,6 +73,9 @@ class OrderService:
         order = await self.orders.get(order_id)
         assert order is not None
         return order
+
+    async def saved_address(self, member_id: int) -> ShippingInfo | None:
+        return await self.addresses.get(member_id)
 
     async def list_mine(self, member_id: int, query: MyOrderQuery) -> tuple[list[Order], int]:
         return await self.orders.search_mine(member_id, query)

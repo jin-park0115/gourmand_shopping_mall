@@ -45,6 +45,13 @@ async def require_admin(user: CurrentUser = Depends(get_current_user)) -> Curren
     return user
 
 
+async def require_customer(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
+    """고객만 (장바구니 담기 · 주문). 로그인 문제는 401, 관리자 계정이면 403."""
+    if user.is_admin:
+        raise PermissionDeniedError("관리자 계정으로는 장바구니 담기 · 주문을 할 수 없어요. 고객 계정으로 로그인해 주세요.")
+    return user
+
+
 async def get_optional_user(
     token: str | None = Depends(oauth2_scheme), service: AuthService = Depends(get_auth_service)
 ) -> CurrentUser | None:

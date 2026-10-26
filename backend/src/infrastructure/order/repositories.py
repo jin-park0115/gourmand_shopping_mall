@@ -7,6 +7,7 @@ from sqlalchemy.orm import selectinload
 
 from domain.order.order import MyOrderQuery, Order, OrderLine, Payment, PaymentStatus, ShippingInfo
 from domain.order.status import OrderStatus
+from infrastructure.auth.models import AddressModel
 from infrastructure.order.models import OrderItemModel, OrderModel, PaymentModel
 
 
@@ -94,6 +95,36 @@ class OrderRepository:
         await self.session.flush()
 
 
+
+class SavedAddressRepository:
+    """회원별로 저장한 배송지 (address 테이블의 기본 배송지 한 줄). 주문서의 "저장된 배송 정보 불러오기"용."""
+
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def get(self, member_id: int) -> ShippingInfo | None:
+        row = await self._default_row(member_id)
+        return ShippingInfo(row.recipient, row.phone, row.zipcode, row.address1, row.address2) if row else None
+
+    async def save(self, member_id: int, shipping: ShippingInfo) -> None:
+        """있으면 덮어쓰고 없으면 만들어요."""
+        row = await self._default_row(member_id)
+        if row is None:
+            row = AddressModel(member_id=member_id, is_default=True)
+            self.session.add(row)
+        row.recipient, row.phone, row.zipcode = shipping.recipient, shipping.phone, shipping.zipcode
+        row.address1, row.address2 = shipping.address1, shipping.address2
+        await self.session.flush()
+
+    async def _default_row(self, member_id: int) -> AddressModel | None:
+        return await self.session.scalar(
+            select(AddressModel)
+            .where(AddressModel.member_id == member_id, AddressModel.is_default.is_(True))
+            .order_by(AddressModel.address_id)
+            .limit(1)
+        )
+
+
 def _with_details(stmt):
     return stmt.options(
         selectinload(OrderModel.items).selectinload(OrderItemModel.product), selectinload(OrderModel.payment)
@@ -113,4 +144,6 @@ def _to_domain(row: OrderModel) -> Order:
             for item in sorted(row.items, key=lambda i: i.order_item_id)
         ],
         payment=Payment(payment.method, payment.amount, PaymentStatus(payment.status), payment.paid_at) if payment else None,
+        courier=row.courier,
+        tracking_no=row.tracking_no,
     )

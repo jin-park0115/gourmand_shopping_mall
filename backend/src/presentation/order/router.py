@@ -9,8 +9,8 @@ from database import get_session
 from domain.auth.member import CurrentUser
 from domain.order.order import MAX_PAGE_SIZE, MyOrderQuery, ShippingInfo
 from domain.order.status import OrderStatus
-from presentation.auth.dependencies import get_current_user
-from presentation.order.schemas import OrderCreateIn, OrderOut
+from presentation.auth.dependencies import get_current_user, require_customer
+from presentation.order.schemas import OrderCreateIn, OrderOut, ShippingOut
 from presentation.schemas import Page
 
 router = APIRouter(prefix="/orders", tags=["order"])
@@ -23,14 +23,14 @@ def get_order_service(session: AsyncSession = Depends(get_session)) -> OrderServ
 @router.post("", response_model=OrderOut, status_code=status.HTTP_201_CREATED)
 async def place_order(
     body: OrderCreateIn,
-    user: CurrentUser = Depends(get_current_user),
+    user: CurrentUser = Depends(require_customer),
     service: OrderService = Depends(get_order_service),
 ) -> OrderOut:
-    """내 장바구니 전체를 주문해요. 성공하면 장바구니는 비워져요."""
+    """내 장바구니 전체를 주문해요. 성공하면 장바구니는 비워져요. 관리자 계정은 403."""
     shipping = ShippingInfo.of(
         recipient=body.recipient, phone=body.phone, zipcode=body.zipcode, address1=body.address1, address2=body.address2
     )
-    return OrderOut.of(await service.place_order(user.member_id, shipping))
+    return OrderOut.of(await service.place_order(user.member_id, shipping, save_address=body.save_address))
 
 
 @router.get("", response_model=Page[OrderOut])
@@ -47,6 +47,16 @@ async def list_my_orders(
     query = MyOrderQuery(status=order_status, date_from=date_from, date_to=date_to, page=page, size=size)
     orders, total = await service.list_mine(user.member_id, query)
     return Page.of([OrderOut.of(o) for o in orders], total, page, size)
+
+
+@router.get("/saved-address", response_model=ShippingOut | None)
+async def my_saved_address(
+    user: CurrentUser = Depends(get_current_user),
+    service: OrderService = Depends(get_order_service),
+) -> ShippingOut | None:
+    """내 계정에 저장된 배송지 (주문할 때 '저장'을 고른 마지막 배송 정보). 없으면 null."""
+    saved = await service.saved_address(user.member_id)
+    return ShippingOut.of(saved) if saved else None
 
 
 @router.get("/{order_id}", response_model=OrderOut)

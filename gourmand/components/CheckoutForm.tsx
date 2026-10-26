@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/components/AuthProvider";
 import { cartErrorMessage, useCart } from "@/components/CartProvider";
-import { saveShipping, savedShippingSnapshot, type OrderInput } from "@/lib/orderStorage";
-import { placeOrder, shippingErrorField } from "@/lib/orders";
+import { type OrderInput } from "@/lib/orderStorage";
+import { fetchSavedAddress, placeOrder, shippingErrorField } from "@/lib/orders";
 
 type Errors = Partial<Record<keyof OrderInput, string>>;
 
@@ -29,13 +30,12 @@ function validate(form: OrderInput): Errors {
   return errors;
 }
 
-const noop = () => () => {};
-
 const inputClass =
   "mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-brand";
 
 export default function CheckoutForm() {
   const router = useRouter();
+  const { member } = useAuth();
   const { items, hydrated, totalCount, totalPrice, orderable, reload } = useCart();
   const [form, setForm] = useState<OrderInput>(EMPTY);
   const [errors, setErrors] = useState<Errors>({});
@@ -44,15 +44,31 @@ export default function CheckoutForm() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // 저장된 배송 정보 (이 브라우저의 localStorage, 서버 렌더링 때는 없음)
-  const savedRaw = useSyncExternalStore(noop, savedShippingSnapshot, () => null);
-  const saved = useMemo<OrderInput | null>(() => {
-    try {
-      return savedRaw ? JSON.parse(savedRaw) : null;
-    } catch {
-      return null;
-    }
-  }, [savedRaw]);
+  // 저장된 배송 정보는 내 계정(서버)에 있어요. 누구의 것인지 같이 저장해서 회원이 바뀌면 쓰지 않아요
+  const memberId = member?.id ?? null;
+  const [savedFor, setSavedFor] = useState<{ memberId: number; value: OrderInput | null } | null>(null);
+  useEffect(() => {
+    if (memberId === null) return;
+    let cancelled = false;
+    fetchSavedAddress().then(
+      (value) => !cancelled && setSavedFor({ memberId, value }),
+      () => !cancelled && setSavedFor({ memberId, value: null }) // 못 불러오면 버튼만 숨겨요
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [memberId]);
+  const saved = savedFor?.memberId === memberId ? savedFor.value : null;
+
+  // 주문을 마치고 다른 화면으로 가도 이 화면의 상태가 보존돼요 (Next cacheComponents).
+  // 그대로 두면 뒤로 가기로 돌아왔을 때 '주문하는 중…' · 0원으로 멈춰서, 화면을 떠날 때 처음 상태로 되돌려요
+  useEffect(
+    () => () => {
+      setSubmitting(false);
+      setSubmitted(false);
+    },
+    []
+  );
 
   if (!hydrated) {
     return <p className="py-20 text-center text-gray-500">불러오는 중...</p>;
@@ -110,11 +126,11 @@ export default function CheckoutForm() {
     setSubmitting(true);
     try {
       // 서버가 장바구니로 주문을 만들고 장바구니를 비워요 (재고 차감 · 결제완료까지 한 번에, SCRUM-29)
-      const order = await placeOrder(form);
+      const order = await placeOrder(form, remember);
       setSubmitted(true); // 비워진 장바구니로 "비어 있어요" 화면이 깜빡이지 않게
-      if (remember) saveShipping(form);
       reload(); // 헤더 장바구니 숫자도 0 으로
-      router.push(`/order/complete?orderId=${order.orderId}`);
+      // replace: 주문 완료에서 뒤로 가기를 누르면 끝난 주문서가 아니라 그 전 화면(장바구니)으로
+      router.replace(`/order/complete?orderId=${order.orderId}`);
     } catch (err) {
       // 배송 정보 문제면 해당 칸 아래에, 그 밖의 이유(재고 부족 등)는 버튼 위에 서버 문구 그대로
       const field = shippingErrorField(err);
@@ -219,7 +235,7 @@ export default function CheckoutForm() {
               onChange={(e) => setRemember(e.target.checked)}
               className="h-4 w-4"
             />
-            이 배송 정보를 다음 주문에도 사용하기
+            이 배송 정보를 내 계정에 저장하고 다음 주문에도 사용하기
           </label>
         </div>
       </section>

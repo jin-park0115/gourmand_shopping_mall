@@ -3,7 +3,7 @@ from datetime import datetime
 
 from pydantic import Field
 
-from domain.order.order import Order, OrderLine, Payment
+from domain.order.order import Order, OrderLine, Payment, ShippingInfo
 from presentation.schemas import CamelModel
 
 
@@ -15,6 +15,21 @@ class OrderCreateIn(CamelModel):
     zipcode: str = Field(max_length=10)
     address1: str = Field(max_length=200)
     address2: str | None = Field(None, max_length=200)
+    save_address: bool = False  # 이 배송 정보를 내 계정에 저장 (다음 주문서에서 불러오기)
+
+
+class ShippingOut(CamelModel):
+    """내 계정에 저장된 배송지."""
+
+    recipient: str
+    phone: str
+    zipcode: str
+    address1: str
+    address2: str | None
+
+    @classmethod
+    def of(cls, s: ShippingInfo) -> "ShippingOut":
+        return cls(recipient=s.recipient, phone=s.phone, zipcode=s.zipcode, address1=s.address1, address2=s.address2)
 
 
 class OrderItemOut(CamelModel):
@@ -53,6 +68,8 @@ class OrderOut(CamelModel):
     address2: str | None
     items: list[OrderItemOut]
     payment: PaymentOut | None
+    courier: str | None  # 배송중부터 (출고 전에는 null)
+    tracking_no: str | None
 
     @classmethod
     def of(cls, order: Order) -> "OrderOut":
@@ -69,4 +86,6 @@ class OrderOut(CamelModel):
             address2=s.address2,
             items=[OrderItemOut.of(line) for line in order.lines],
             payment=PaymentOut.of(order.payment) if order.payment else None,
+            courier=order.courier,
+            tracking_no=order.tracking_no,
         )
