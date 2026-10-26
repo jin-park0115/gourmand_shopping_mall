@@ -275,6 +275,8 @@ Content-Type: application/json
 | PATCH | `/cart/items/{productId}` | 수량 변경 | 회원 | 200 | 401 · 404 · 409 · 422 | SCRUM-27 |
 | DELETE | `/cart/items/{productId}` | 상품 빼기 | 회원 | 200 | 401 · 404 | SCRUM-27 |
 | DELETE | `/cart` | 전체 비우기 | 회원 | 200 | 401 | SCRUM-27 |
+| POST | `/orders` | 주문하기 (내 장바구니 전체) | 회원 | 201 | 401 · 404 · 409 · 422 | SCRUM-29 |
+| GET | `/orders/{orderId}` | 내 주문 하나 (주문 완료 화면) | 회원 (본인) | 200 | 401 · 404 | SCRUM-29 |
 
 ### POST /auth/signup
 
@@ -368,6 +370,43 @@ Swagger(`/docs`) 오른쪽 위 `Authorize` 에 이메일 · 비밀번호를 넣�
 | 404 | `NOT_FOUND` | "상품을 찾을 수 없어요.", "장바구니에 없는 상품이에요." |
 | 409 | `BUSINESS_RULE_VIOLATION` | "'로투스' 상품이 품절이에요.", "'로투스' 재고가 부족해요. (최대 5개까지 담을 수 있어요)" — 합친 수량이 재고를 넘어도 409, 장바구니는 그대로 |
 | 422 | `VALIDATION_ERROR` | 수량 0 이하 · 999 초과 |
+
+### 주문하기 (SCRUM-29)
+
+`POST /orders` 는 **배송 정보만** 받아요. 주문 상품 · 수량 · 가격은 서버 장바구니에서 가져와서, 화면이 보낸 가격을 믿지 않아요.
+
+```json
+{ "recipient": "김구르", "phone": "010-1234-5678", "zipcode": "06236", "address1": "서울 강남구 테헤란로 123", "address2": "4층" }
+```
+
+| 필드 | 규칙 (프론트 CheckoutForm 과 같아요) |
+| --- | --- |
+| `recipient` | 받는 분, 비우면 안 돼요 (50자까지) |
+| `phone` | 휴대폰 `01X-XXXX-XXXX` (`-` 생략 가능) |
+| `zipcode` | 숫자 5자리 |
+| `address1` · `address2` | 주소 (필수) · 상세 주소 (선택, 비우면 `null`) |
+
+한 트랜잭션으로 처리해요: 장바구니 잠금 → 상품을 상품 번호 순으로 잠그고 재고 차감 → 주문 · 주문 상품(주문 당시 판매가) · 결제(`결제완료`, 결제 연동이 없어 바로 완료) 저장 → 상태 이력 첫 줄(`null → 접수`) → 장바구니 비우기.
+**하나라도 실패하면 전부 되돌려요** (앞 상품 재고도 그대로, 장바구니도 그대로).
+
+응답 (201) · `GET /orders/{orderId}`:
+
+```json
+{
+  "orderId": 12, "status": "접수", "orderedAt": "2026-10-26T14:03:00", "totalPrice": 13800,
+  "recipient": "김구르", "phone": "010-1234-5678", "zipcode": "06236", "address1": "서울 강남구 테헤란로 123", "address2": "4층",
+  "items": [{ "productId": 6, "name": "로투스 비스코프", "imageUrl": "/images/6.png", "unitPrice": 3900, "quantity": 2, "subtotal": 7800 }],
+  "payment": { "method": "카드", "amount": 13800, "status": "결제완료", "paidAt": "2026-10-26T14:03:00" }
+}
+```
+
+`orderedAt` · `paidAt` 은 KST (시간대 표시 없음, 관리자 화면과 같은 기준). 남의 주문은 없는 주문과 똑같이 404 예요.
+
+| 오류 | code | 예 |
+| --- | --- | --- |
+| 404 | `NOT_FOUND` | "주문을 찾을 수 없어요." |
+| 409 | `BUSINESS_RULE_VIOLATION` | "장바구니가 비어 있어요.", "'하리보' 재고가 부족해요. (남은 수량 4개)", "'로투스' 상품이 품절이에요." |
+| 422 | `INVALID_VALUE` | "휴대폰 번호를 올바르게 입력해 주세요. (예: 010-1234-5678)", "우편번호 5자리를 입력해 주세요." |
 
 ## C 관리자 주문 (안중섭)
 
@@ -538,7 +577,7 @@ Content-Type: application/json
 | --- | --- | --- | --- |
 | `require_admin` | 윤강 (SCRUM-19) | 위치 `presentation/auth/dependencies.py`. 통과하면 `CurrentUser(member_id, email, role)`를 돌려줘요. 토큰 없음 · 만료 · 로그아웃된 토큰은 401, 로그인했지만 `role`이 `admin`이 아니면 403 | 구현됨 (SCRUM-19) |
 | `orders` 컬럼 추가 | 윤강 (SCRUM-29) | `courier` · `tracking_no` · `admin_note` · `updated_at` + `(status, ordered_at)` 인덱스 | 합의됨 |
-| 주문 생성 때 이력 첫 줄 | 윤강 (SCRUM-29) | 주문을 만들 때 `order_status_history`에 `접수` 한 줄(`received()`)을 같이 넣어요 | 합의됨 (SCRUM-29에서 윤강) |
+| 주문 생성 때 이력 첫 줄 | 윤강 (SCRUM-29) | 주문을 만들 때 `order_status_history`에 `접수` 한 줄(`received()`)을 같이 넣어요 | 구현됨 (SCRUM-29) |
 | 취소 때 결제 상태 | 윤강 | 관리자 취소 때 `payment.status`를 `결제취소`로 (값: 결제완료 · 결제취소) | 합의됨 |
 | 재고 복구 | 박진 (SCRUM-21) | `ProductRepository.get_for_update` → `increase_stock` → `save_stock` | 합의됨 |
 | camelCase · Page 형식 | 팀 전체 | 공통 `presentation/schemas.py`의 `CamelModel` · `Page[T]` (PR #15) | 합의됨 |
