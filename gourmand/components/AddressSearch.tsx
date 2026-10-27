@@ -6,7 +6,8 @@ import { useCallback, useRef } from "react";
 // 새 창(팝업) 대신 화면 안의 창에 넣어요 (모바일 · 팝업 차단에서 깨지지 않게). 휴대폰에서는 화면 가득
 // https://postcode.map.kakao.com/guide
 
-export const POSTCODE_SCRIPT = "https://t1.kakaocdn.net/mapjs/postcode/prod/postcode.v2.js";
+// 가이드의 주소 그대로 (예전 /mapjs/postcode/... 주소는 403 이에요)
+export const POSTCODE_SCRIPT = "https://t1.kakaocdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
 
 // 쓰는 값만 (전체 목록은 위 가이드)
 type PostcodeResult = {
@@ -96,7 +97,7 @@ export function useAddressSearch({
       ref={dialog}
       aria-label="주소 검색"
       onClick={(e) => e.target === e.currentTarget && dialog.current?.close()}
-      className="m-0 h-dvh max-h-none w-full max-w-none p-0 backdrop:bg-black/40 sm:m-auto sm:h-[560px] sm:max-w-lg sm:rounded-2xl sm:shadow-xl"
+      className="m-0 h-dvh max-h-none w-full max-w-none p-0 backdrop:bg-black/40 sm:m-auto sm:h-140 sm:max-w-lg sm:rounded-2xl sm:shadow-xl"
     >
       <div className="flex h-full flex-col">
         <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">

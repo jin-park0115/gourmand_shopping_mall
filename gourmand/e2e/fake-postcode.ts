@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 
-const POSTCODE_SCRIPT = "https://t1.kakaocdn.net/mapjs/postcode/prod/postcode.v2.js"; // components/AddressSearch.tsx 와 같게
+const POSTCODE_SCRIPT = "https://t1.kakaocdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"; // components/AddressSearch.tsx 와 같게
 
 // 카카오 우편번호 스크립트 대신 넣는 가짜. 실제 서비스 상태(CI · 회사망 차단)에 테스트가 흔들리지 않게 해요.
 // 창 안에 '역삼동 테헤란로 152' 버튼 하나를 그리고, 누르면 진짜처럼 oncomplete 를 불러요
