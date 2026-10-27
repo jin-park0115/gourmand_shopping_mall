@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from application.product.service import ProductService
 from database import get_session
 from domain.product.product import ProductSort
-from presentation.product.schemas import CategoryOut, ProductOut
+from presentation.product.schemas import CategoryOut, ProductOut, SuggestCountryOut, SuggestOut, SuggestProductOut
 from presentation.schemas import Page
 
 router = APIRouter(tags=["product"])
@@ -40,6 +40,22 @@ async def list_products(
         size=size,
     )
     return Page.of([ProductOut.of(listing) for listing in listings], total, page, size)
+
+
+# /products/{product_id} 보다 먼저 둬야 "suggest" 가 상품 번호로 읽히지 않아요
+@router.get("/products/suggest", response_model=SuggestOut)
+async def suggest_products(
+    q: str = Query(..., min_length=1, max_length=50, description="검색창에 치는 중인 글자 (자모 · 초성 · 동의어 검색과 같은 규칙)"),
+    limit: int = Query(5, ge=1, le=10),
+    service: ProductService = Depends(get_product_service),
+) -> SuggestOut:
+    listings, total, categories, countries = await service.suggest(q, limit=limit)
+    return SuggestOut(
+        total=total,
+        products=[SuggestProductOut.of(listing) for listing in listings],
+        categories=[CategoryOut.of(c) for c in categories],
+        countries=[SuggestCountryOut(slug=slug, name=name) for name, slug in countries],
+    )
 
 
 @router.get("/products/{product_id}", response_model=ProductOut)

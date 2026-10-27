@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import CartBadge from "@/components/CartBadge";
+import SearchField from "@/components/SearchField";
 import { useAuth } from "@/components/AuthProvider";
 import { askLogin, loginHref } from "@/lib/api";
 
@@ -82,14 +83,13 @@ function SearchBox() {
     <form
       action="/products"
       role="search"
-      className="flex h-11 w-full items-center rounded-full border border-brand-line bg-brand-soft pl-4 pr-1 transition focus-within:border-brand focus-within:bg-white focus-within:ring-2 focus-within:ring-brand-soft"
+      className="relative flex h-11 w-full items-center rounded-full border border-brand-line bg-brand-soft pl-4 pr-1 transition focus-within:border-brand focus-within:bg-white focus-within:ring-2 focus-within:ring-brand-soft"
     >
-      <input
-        type="search"
-        name="q"
-        aria-label="간식 검색"
+      <SearchField
+        searchPath="/products"
+        panelClassName="right-0 w-[440px] max-w-[calc(100vw-2rem)]"
         placeholder="어떤 간식을 찾으세요?"
-        className="min-w-0 flex-1 bg-transparent text-[15px] text-gray-900 outline-none placeholder:text-slate-500"
+        className="w-full bg-transparent text-[15px] text-gray-900 outline-none placeholder:text-slate-500"
       />
 
       <button
