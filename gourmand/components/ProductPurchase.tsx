@@ -19,7 +19,8 @@ export default function ProductPurchase({
   const router = useRouter();
   const { addItem, items } = useCart();
   const [quantity, setQuantity] = useState(1);
-  const [addedQuantity, setAddedQuantity] = useState(0); // 창에 보여 줄 방금 담은 수량
+  // 창에 보여 줄 방금 담은 수량과, 담기 전에 이미 장바구니에 있던 수량 (서버가 더해 줘요)
+  const [added, setAdded] = useState({ quantity: 0, before: 0 });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   // 브라우저 기본 모달: Esc 로 닫기 · 창 밖 포커스 막기 · 배경 어둡게를 알아서 해 줘요
@@ -36,7 +37,7 @@ export default function ProductPurchase({
     try {
       // 로그인하지 않았으면 로그인 안내 창을 띄워요 (false)
       if (await addItem(p.id, quantity)) {
-        setAddedQuantity(quantity);
+        setAdded({ quantity, before: inCart });
         setQuantity(1);
         dialog.current?.showModal();
       }
@@ -121,11 +122,16 @@ export default function ProductPurchase({
       >
         <div className="p-6 text-center">
           <p id="cart-added-title" className="text-lg font-bold text-gray-900">
-            장바구니에 담았어요 ✓
+            {added.before > 0 ? "이미 담긴 상품이라 수량을 더했어요 ✓" : "장바구니에 담았어요 ✓"}
           </p>
           <p className="mt-1 text-sm text-gray-500">
-            {p.name} · {addedQuantity}개
+            {p.name} · {added.quantity}개{added.before > 0 && " 추가"}
           </p>
+          {added.before > 0 && (
+            <p className="mt-0.5 text-sm font-semibold text-brand">
+              장바구니에 총 {added.before + added.quantity}개
+            </p>
+          )}
           <p className="mt-4 text-sm text-gray-700">장바구니로 이동할까요?</p>
           <div className="mt-5 grid grid-cols-2 gap-2">
             <button

@@ -8,8 +8,9 @@ import { ApiError } from "@/lib/api";
 import type { Product } from "@/types/product";
 
 const addItem = vi.fn();
+let cartItems: { id: number; quantity: number }[] = [];
 vi.mock("@/components/CartProvider", () => ({
-  useCart: () => ({ addItem, items: [] }),
+  useCart: () => ({ addItem, items: cartItems }),
   cartErrorMessage: (e: Error) => e.message,
 }));
 
@@ -18,6 +19,7 @@ const product = { id: 7, name: "초코 파이", stock: 10 } as Product;
 beforeEach(() => {
   router.push.mockClear();
   addItem.mockReset();
+  cartItems = [];
 });
 
 const setup = () => {
@@ -34,6 +36,17 @@ it("담으면 '장바구니로 이동할까요?' 창이 떠요 (담은 수량과
   const dialog = screen.getByRole("dialog", { name: "장바구니에 담았어요 ✓" });
   expect(dialog).toHaveTextContent("초코 파이 · 2개");
   expect(screen.getByText("1")).toBeInTheDocument(); // 수량은 1로 돌아가요
+});
+
+it("이미 담긴 상품이면 수량을 더했다고 · 총 몇 개인지 알려 줘요", async () => {
+  cartItems = [{ id: 7, quantity: 3 }];
+  addItem.mockResolvedValue(true);
+  const user = setup();
+  await user.click(screen.getByRole("button", { name: "수량 늘리기" }));
+  await user.click(screen.getByRole("button", { name: "장바구니 담기" }));
+  const dialog = screen.getByRole("dialog", { name: "이미 담긴 상품이라 수량을 더했어요 ✓" });
+  expect(dialog).toHaveTextContent("초코 파이 · 2개 추가");
+  expect(dialog).toHaveTextContent("장바구니에 총 5개");
 });
 
 it("장바구니로 이동 → /cart", async () => {
