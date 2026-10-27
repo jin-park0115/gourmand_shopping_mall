@@ -8,6 +8,7 @@ import ProductCard from "@/components/ProductCard";
 import MainBanner from "@/components/MainBanner";
 import HomeSection from "@/components/HomeSection";
 import ProductRow from "@/components/ProductRow";
+import { HomeRowsSkeleton } from "@/components/Skeletons";
 
 // 품절 상품은 항상 뒤로
 const soldOutLast = (a: Product, b: Product) =>
@@ -100,7 +101,7 @@ export default function Home() {
         <CountryMenu />
       </section>
 
-      <Suspense fallback={<p className="mt-10 text-sm text-gray-500">상품을 불러오는 중이에요…</p>}>
+      <Suspense fallback={<HomeRowsSkeleton />}>
         <HomeProducts />
       </Suspense>
     </main>

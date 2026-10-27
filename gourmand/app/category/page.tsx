@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { Bone, Loading } from "@/components/Skeletons";
 
 import { CATEGORIES } from "@/lib/categories";
 import { COUNTRY_FILTERS, fetchCategoryCounts } from "@/lib/products";
@@ -42,7 +43,18 @@ export default function CategoryIndexPage() {
   return (
     <main className="mx-auto max-w-6xl px-4 py-6 md:py-8">
       <h1 className="text-2xl font-extrabold text-[#2A1A12]">카테고리</h1>
-      <Suspense fallback={<p className="mb-4 mt-1 text-sm text-[#6E5B50]">카테고리를 불러오는 중이에요…</p>}>
+      <Suspense
+        fallback={
+          <Loading label="카테고리를 불러오는 중이에요">
+            <Bone className="mb-4 mt-2 h-4 w-48" />
+            <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3 md:gap-4">
+              {Array.from({ length: 6 }, (_, i) => (
+                <Bone key={i} className="h-[80px] rounded-2xl md:h-[112px]" />
+              ))}
+            </div>
+          </Loading>
+        }
+      >
         <CategoryCards />
       </Suspense>
 

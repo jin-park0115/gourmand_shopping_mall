@@ -9,6 +9,7 @@ import { COUNTRY_FILTERS, fetchProducts } from "@/lib/products";
 import CategoryTabs from "@/components/CategoryTabs";
 import ProductCard from "@/components/ProductCard";
 import { SortLinks } from "@/components/ProductFilters";
+import { ProductGridSkeleton } from "@/components/Skeletons";
 
 type CategoryPageProps = {
   params: Promise<{ slug: string }>;
@@ -135,7 +136,7 @@ async function CategoryContent({ params, searchParams }: CategoryPageProps) {
 export default function CategoryPage(props: CategoryPageProps) {
   return (
     <main className="mx-auto max-w-6xl px-4 py-6 md:py-8">
-      <Suspense fallback={<p className="text-sm text-gray-500">상품을 불러오는 중이에요…</p>}>
+      <Suspense fallback={<ProductGridSkeleton />}>
         <CategoryContent {...props} />
       </Suspense>
     </main>

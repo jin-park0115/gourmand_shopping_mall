@@ -6,6 +6,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { ApiError, loginHref, type Page } from "@/lib/api";
 import { ORDER_STATUSES, type OrderInput } from "@/lib/orderStorage";
 import { CANCELLABLE_STATUSES, cancelOrder, fetchMyOrders, fetchSavedAddress, type Order } from "@/lib/orders";
+import { ListSkeleton } from "@/components/Skeletons";
 
 const PAGE_SIZE = 5;
 
@@ -107,7 +108,7 @@ export default function MyOrders() {
   }
 
   if (!ready) {
-    return <p className="py-20 text-center text-gray-500">불러오는 중...</p>;
+    return <ListSkeleton rows={3} thumb label="주문 내역을 불러오는 중이에요" className="py-6" />;
   }
 
   if (!member) {
@@ -201,7 +202,7 @@ export default function MyOrders() {
         )}
 
         {!current ? (
-          <p className="py-16 text-center text-gray-500">불러오는 중...</p>
+          <ListSkeleton rows={3} thumb label="주문 내역을 불러오는 중이에요" />
         ) : current.error ? (
           <div className="rounded-xl border border-gray-200 py-16 text-center">
             <p className="text-gray-600">{current.error}</p>
