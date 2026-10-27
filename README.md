@@ -333,7 +333,14 @@ uv run pytest            # 계층 규칙 · 도메인 · API · 실패 케이스
 cd ../gourmand
 npm test                 # Vitest: lib 함수 · 검색창 · 로그인/가입 폼 · 토스트 (서버 · 브라우저 없이)
 npx tsc --noEmit && npm run lint && npm run build
+
+# e2e (Playwright): 실제 브라우저로 처음부터 끝까지. 백엔드(127.0.0.1:8000)를 먼저 켜 두세요. 프론트는 없으면 자동으로 켜요
+npx playwright install chromium webkit   # 처음 한 번 (브라우저 내려받기)
+npm run e2e              # 크롬 · Safari 엔진(WebKit) · 모바일(iPhone 13)
+npx playwright test --ui # 화면을 보면서 하나씩
 ```
+
+- e2e는 **로컬 DB**에 테스트 회원(`e2e-…@test.com`) · 주문을 만들어요. 운영 사이트에는 돌리지 마세요.
 
 | UC | 실패 케이스 · 로그아웃 후 401 검증 |
 |---|---|
