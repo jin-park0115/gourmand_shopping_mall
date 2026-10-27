@@ -35,15 +35,15 @@ def test_default_seed_emails_pass_email_validation() -> None:
 def test_every_product_has_a_category() -> None:
     ids = {p["id"] for p in load_products()}
     mapped = [pid for _, _, pids in CATEGORIES for pid in pids]
-    assert len(ids) == 60
+    assert len(ids) == 62
     assert sorted(mapped) == sorted(ids)  # 빠짐도 겹침도 없어요
 
 
 async def test_seed_creates_everything(db_session) -> None:
     result = await run_seed(db_session, SETTINGS)
-    assert (result.countries, result.categories, result.products) == (6, 6, 60)
+    assert (result.countries, result.categories, result.products) == (7, 6, 62)  # 나라: 61번 뉴질랜드 추가
     assert result.accounts == ["admin@seed.test", "customer@seed.test"] and result.skipped_accounts == []
-    assert await _count(db_session, CountryModel) == 6
+    assert await _count(db_session, CountryModel) == 7
     assert sorted(await db_session.scalars(select(CategoryModel.name))) == sorted(name for _, name, _ in CATEGORIES)
 
     jagarico = await db_session.get(ProductModel, 1)
@@ -73,11 +73,11 @@ async def test_running_twice_does_not_duplicate(db_session) -> None:
     products = load_products()
     products[0] = {**products[0], "price": 3500}  # 데이터가 바뀌면 덮어써요
     again = await run_seed(db_session, SETTINGS, products)
-    assert again.products == 60
-    assert await _count(db_session, CountryModel) == 6
+    assert again.products == 62
+    assert await _count(db_session, CountryModel) == 7
     assert await _count(db_session, CategoryModel) == 6
     assert await _count(db_session, MemberModel) == 2 + len(REVIEWERS)  # 관리자 · 고객 + 리뷰 작성용 회원
-    assert await _count(db_session, ReviewModel) == again.reviews == len(review_plan(list(range(1, 61))))
+    assert await _count(db_session, ReviewModel) == again.reviews == len(review_plan(list(range(1, 63))))
     db_session.expire_all()
     assert (await db_session.get(ProductModel, 1)).price == 3500
 
@@ -92,19 +92,19 @@ async def test_new_product_after_seed_gets_next_id(db_session) -> None:
     )
     db_session.add(new)
     await db_session.flush()
-    assert new.product_id == 61  # 시퀀스를 맞춰서 1번과 겹치지 않아요
+    assert new.product_id == 63  # 시퀀스를 맞춰서 1번과 겹치지 않아요
 
 
 async def test_accounts_skipped_without_password(db_session) -> None:
     result = await run_seed(db_session, Settings(_env_file=None))
     assert result.accounts == [] and result.skipped_accounts == ["admin", "customer"]
     assert await _count(db_session, MemberModel) == len(REVIEWERS)  # 리뷰 작성용 회원만
-    assert result.products == 60
+    assert result.products == 62
 
 
 async def test_seed_reviews_give_ratings(db_session) -> None:
     result = await run_seed(db_session, SETTINGS)
-    assert result.reviews == 150  # 상품마다 0~5개
+    assert result.reviews == 153  # 상품마다 0~5개
     # 상품 번호 % 6 개 → 6번은 0개, 5번은 5개
     counts = dict((await db_session.execute(select(ReviewModel.product_id, func.count()).group_by(ReviewModel.product_id))).all())
     assert 6 not in counts and counts[5] == 5

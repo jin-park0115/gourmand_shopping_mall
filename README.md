@@ -31,7 +31,7 @@
 ## 1. 프로젝트 소개
 
 해외여행에서 사 오던 그 나라 간식을 집에서 편하게 주문할 수 있는 **세계 과자 온라인 쇼핑몰**입니다.
-일본 · 대만 · 중국 · 베트남 · 그 외 나라(미국 · 프랑스)의 과자 60종을 **나라별 · 카테고리별**로 둘러보고, 리뷰를 보고, 장바구니에 담아 주문할 수 있습니다.
+일본 · 대만 · 중국 · 베트남 · 그 외 나라(미국 · 프랑스 · 뉴질랜드)의 과자 62종을 **나라별 · 카테고리별**로 둘러보고, 리뷰를 보고, 장바구니에 담아 주문할 수 있습니다.
 
 ```
 메인 ─┬─ 나라별 (일본 · 대만 · 중국 · 베트남 · 그 외)
@@ -103,7 +103,7 @@ cd backend
 uv sync                          # 가상환경 + 의존성
 cp .env.example .env             # 값 수정 (아래 환경변수 표)
 uv run alembic upgrade head      # 테이블 만들기 · 갱신
-uv run python scripts/seed.py    # 나라 6 · 카테고리 6 · 상품 60 · 관리자/고객 계정 · 리뷰 150
+uv run python scripts/seed.py    # 나라 7 · 카테고리 6 · 상품 62 · 관리자/고객 계정 · 리뷰 153
 uv run uvicorn main:app --app-dir src --reload
 ```
 
@@ -331,8 +331,17 @@ Jira 키 전체 표: [docs/jira-keys.md](docs/jira-keys.md)
 cd backend
 uv run pytest            # 계층 규칙 · 도메인 · API · 실패 케이스 (gourmand_test DB)
 cd ../gourmand
+npm test                 # Vitest: lib 함수 · 검색창 · 로그인/가입 폼 · 토스트 (서버 · 브라우저 없이)
 npx tsc --noEmit && npm run lint && npm run build
+
+# e2e (Playwright): 실제 브라우저로 처음부터 끝까지. 백엔드(127.0.0.1:8000)를 먼저 켜 두세요. 프론트는 없으면 자동으로 켜요
+npx playwright install chromium webkit   # 처음 한 번 (브라우저 내려받기)
+npm run e2e              # 크롬 · Safari 엔진(WebKit) · 모바일(iPhone 13)
+npx playwright test --ui # 화면을 보면서 하나씩
 ```
+
+- PR · develop/main push마다 GitHub Actions([`.github/workflows/test.yml`](.github/workflows/test.yml))가 위 세 가지를 모두 돌려요 (약 2분). 빨간 X가 뜨면 머지 전에 확인하세요.
+- e2e는 **로컬 DB**에 테스트 회원(`e2e-…@test.com`) · 주문을 만들어요. 운영 사이트에는 돌리지 마세요.
 
 | UC | 실패 케이스 · 로그아웃 후 401 검증 |
 |---|---|

@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useAddressSearch } from "@/components/AddressSearch";
 import { useAuth } from "@/components/AuthProvider";
 import { cartErrorMessage, useCart } from "@/components/CartProvider";
 import { type OrderInput } from "@/lib/orderStorage";
 import { fetchSavedAddress, placeOrder, shippingErrorField } from "@/lib/orders";
+import { formatPhone } from "@/lib/phone";
 import { ListSkeleton } from "@/components/Skeletons";
 
 type Errors = Partial<Record<keyof OrderInput, string>>;
@@ -31,6 +33,10 @@ function validate(form: OrderInput): Errors {
   return errors;
 }
 
+function FieldError({ message }: { message?: string }) {
+  return message ? <span className="mt-1 block text-xs text-red-500">{message}</span> : null;
+}
+
 const inputClass =
   "mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-brand";
 
@@ -44,6 +50,19 @@ export default function CheckoutForm() {
   const [remember, setRemember] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // 우편번호 · 주소는 [주소 검색]으로만 채워요. 검색을 못 불러오면(광고 차단 · 네트워크) 직접 입력할 수 있게 풀어요
+  const [manualAddress, setManualAddress] = useState(false);
+  const address = useAddressSearch({
+    onSelect: useCallback((zipcode: string, address1: string) => {
+      setForm((prev) => ({ ...prev, zipcode, address1 }));
+      setErrors((prev) => ({ ...prev, zipcode: undefined, address1: undefined }));
+      // 창이 닫힌 뒤에 상세 주소로 (닫히면서 포커스가 원래 버튼으로 돌아가요)
+      setTimeout(() => formRef.current?.querySelector<HTMLInputElement>('[name="address2"]')?.focus());
+    }, []),
+    onUnavailable: useCallback(() => setManualAddress(true), []),
+  });
 
   // 저장된 배송 정보는 내 계정(서버)에 있어요. 누구의 것인지 같이 저장해서 회원이 바뀌면 쓰지 않아요
   const memberId = member?.id ?? null;
@@ -112,8 +131,9 @@ export default function CheckoutForm() {
   }
 
   const handleChange =
-    (key: keyof OrderInput) => (e: React.ChangeEvent<HTMLInputElement>) => {
-      setForm((prev) => ({ ...prev, [key]: e.target.value }));
+    (key: keyof OrderInput, format: (value: string) => string = (v) => v) =>
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setForm((prev) => ({ ...prev, [key]: format(e.target.value) }));
       if (errors[key]) setErrors((prev) => ({ ...prev, [key]: undefined }));
     };
 
@@ -128,7 +148,12 @@ export default function CheckoutForm() {
     const found = validate(form);
     setErrors(found);
     setSubmitError(null);
-    if (Object.keys(found).length > 0) return;
+    if (Object.keys(found).length > 0) {
+      // 첫 번째 틀린 칸으로 (화면 위쪽 칸부터)
+      const first = (Object.keys(EMPTY) as (keyof OrderInput)[]).find((k) => found[k]);
+      formRef.current?.querySelector<HTMLInputElement>(`[name="${first}"]`)?.focus();
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -150,6 +175,7 @@ export default function CheckoutForm() {
 
   return (
     <form
+      ref={formRef}
       onSubmit={handleSubmit}
       noValidate
       className="grid gap-8 lg:grid-cols-[1fr_320px]"
@@ -173,67 +199,89 @@ export default function CheckoutForm() {
           <label className="block text-sm font-medium text-gray-700">
             받는 분
             <input
+              name="buyerName"
               className={inputClass}
               value={form.buyerName}
               onChange={handleChange("buyerName")}
               placeholder="이름"
+              autoComplete="shipping name"
+              aria-invalid={errors.buyerName ? true : undefined}
             />
-            {errors.buyerName && (
-              <span className="mt-1 block text-xs text-red-500">{errors.buyerName}</span>
-            )}
+            <FieldError message={errors.buyerName} />
           </label>
 
           <label className="block text-sm font-medium text-gray-700">
             휴대폰 번호
             <input
+              name="phone"
+              type="tel"
               className={inputClass}
               value={form.phone}
-              onChange={handleChange("phone")}
+              // 숫자만 쳐도 010-1234-5678 로 (회원가입과 같은 규칙)
+              onChange={handleChange("phone", formatPhone)}
               placeholder="010-1234-5678"
-              inputMode="tel"
-            />
-            {errors.phone && (
-              <span className="mt-1 block text-xs text-red-500">{errors.phone}</span>
-            )}
-          </label>
-
-          <label className="block text-sm font-medium text-gray-700">
-            우편번호
-            <input
-              className={inputClass}
-              value={form.zipcode}
-              onChange={handleChange("zipcode")}
-              placeholder="12345"
               inputMode="numeric"
-              maxLength={5}
+              autoComplete="shipping tel"
+              aria-invalid={errors.phone ? true : undefined}
             />
-            {errors.zipcode && (
-              <span className="mt-1 block text-xs text-red-500">{errors.zipcode}</span>
-            )}
+            <FieldError message={errors.phone} />
           </label>
 
-          <label className="block text-sm font-medium text-gray-700">
-            주소
+          {/* 주소: [주소 검색]으로 우편번호 · 도로명 주소를 채우고, 상세 주소만 직접 */}
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium text-gray-700">주소</legend>
+            <div className="flex gap-2">
+              <input
+                name="zipcode"
+                aria-label="우편번호"
+                className={`${inputClass} mt-0 max-w-36 ${manualAddress ? "" : "cursor-pointer bg-gray-50"}`}
+                value={form.zipcode}
+                onChange={handleChange("zipcode")}
+                onClick={manualAddress ? undefined : address.open}
+                readOnly={!manualAddress}
+                placeholder="우편번호"
+                inputMode="numeric"
+                maxLength={5}
+                autoComplete="shipping postal-code"
+                aria-invalid={errors.zipcode ? true : undefined}
+              />
+              <button
+                type="button"
+                onClick={address.open}
+                className="shrink-0 rounded-lg border border-brand px-4 text-sm font-semibold text-brand transition hover:bg-brand-soft"
+              >
+                주소 검색
+              </button>
+            </div>
             <input
-              className={inputClass}
+              name="address1"
+              aria-label="주소"
+              className={`${inputClass} mt-0 ${manualAddress ? "" : "cursor-pointer bg-gray-50"}`}
               value={form.address1}
               onChange={handleChange("address1")}
-              placeholder="도로명 주소"
+              onClick={manualAddress ? undefined : address.open}
+              readOnly={!manualAddress}
+              placeholder={manualAddress ? "도로명 주소" : "주소 검색을 눌러 주세요"}
+              autoComplete="shipping address-line1"
+              aria-invalid={errors.address1 ? true : undefined}
             />
-            {errors.address1 && (
-              <span className="mt-1 block text-xs text-red-500">{errors.address1}</span>
-            )}
-          </label>
-
-          <label className="block text-sm font-medium text-gray-700">
-            상세 주소 (선택)
             <input
-              className={inputClass}
+              name="address2"
+              aria-label="상세 주소"
+              className={`${inputClass} mt-0`}
               value={form.address2}
               onChange={handleChange("address2")}
-              placeholder="동/호수 등"
+              placeholder="상세 주소 (동 · 호수, 선택)"
+              autoComplete="shipping address-line2"
             />
-          </label>
+            <FieldError message={errors.zipcode ?? errors.address1} />
+            {manualAddress && (
+              <p className="text-xs text-gray-500">
+                주소 검색을 불러오지 못했어요. 우편번호와 주소를 직접 입력해 주세요.
+              </p>
+            )}
+          </fieldset>
+          {address.element}
 
           <label className="flex items-center gap-2 text-sm text-gray-700">
             <input
