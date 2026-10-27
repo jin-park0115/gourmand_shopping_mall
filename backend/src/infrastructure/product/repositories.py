@@ -130,6 +130,11 @@ class ProductRepository:
         )
         return [CategorySummary(slug, name, count) for slug, name, count in rows.all()]
 
+    async def list_countries(self) -> list[tuple[str, str]]:
+        """(나라 이름, slug). 주요 4개국이 아니면 slug 는 other ("그 외")."""
+        rows = await self.session.execute(select(CountryModel.name, CountryModel.slug).order_by(CountryModel.country_id))
+        return [(name, slug or OTHER_COUNTRY_SLUG) for name, slug in rows.all()]
+
 
 def _listing_query():
     """상품 + 나라 · 카테고리 + 리뷰 집계. (select 문, 평점 컬럼, 리뷰 수 컬럼)"""

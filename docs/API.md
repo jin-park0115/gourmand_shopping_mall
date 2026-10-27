@@ -135,6 +135,28 @@ GET /products?q=도쿄바나나&country=japan&sort=low&page=1&size=20
 
 없는 `category` slug는 오류가 아니라 빈 목록(`total: 0`)이에요. 화면은 "결과 없음"을 보여 주면 돼요.
 
+### GET /products/suggest
+
+검색창 자동완성. 치는 동안 맞는 카테고리 · 나라 · 상품을 보여 줘요. 찾는 규칙은 `GET /products?q=`와 같아요 (자모 · 초성 · 동의어). 로그인 불필요.
+
+| 쿼리 | 형식 | 기본 | 설명 |
+|---|---|---|---|
+| `q` | 문자열 1~50자 (필수) | - | 치는 중인 글자 |
+| `limit` | 1~10 | 5 | 상품 몇 개까지 |
+
+```json
+{
+  "total": 9,
+  "products": [{ "id": 7, "name": "키노코노야마 초콜릿 쿠키", "imageUrl": "/images/products/7.webp", "price": 3400, "salePrice": 3400, "isSoldOut": false }],
+  "categories": [{ "slug": "chocolate", "name": "초콜릿", "productCount": 7 }],
+  "countries": []
+}
+```
+
+- `products`: 추천순 상위 `limit`개 (상품명에서 찾은 상품이 먼저, 품절은 뒤), `total`: 전체 검색 결과 수
+- `categories` · `countries`: 이름이 맞는 것. 주요 4개국이 아닌 나라는 `slug: "other"`("그 외")
+- 422 `VALIDATION_ERROR`: `q` 없음 · 51자 이상, `limit` 범위 밖
+
 ### GET /products/{productId}
 
 | 경로 값 | 타입 | 설명 |
