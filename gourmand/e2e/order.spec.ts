@@ -25,8 +25,12 @@ test("회원가입부터 주문까지", async ({ page }, testInfo) => {
   const productName = await page.getByRole("heading", { level: 1 }).textContent();
   await page.getByRole("button", { name: "장바구니 담기", exact: true }).click();
 
-  // 장바구니 → 주문서
-  await page.getByRole("link", { name: "1 장바구니" }).click();
+  // 담으면 '장바구니로 이동할까요?' 창 → 장바구니 → 주문서
+  const dialog = page.getByRole("dialog", { name: "장바구니에 담았어요 ✓" });
+  await expect(dialog).toContainText(`${productName} · 1개`);
+  await expect(page.getByRole("link", { name: "1 장바구니" })).toBeAttached(); // 헤더 숫자도 1
+  await dialog.getByRole("button", { name: "장바구니로 이동" }).click();
+  await expect(page).toHaveURL("/cart");
   await expect(page.getByText(productName!).first()).toBeVisible();
   await page.getByRole("link", { name: "주문하기" }).click();
 
