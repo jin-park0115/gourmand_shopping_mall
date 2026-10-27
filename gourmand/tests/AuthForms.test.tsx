@@ -3,9 +3,10 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { router, searchParams } from "./next-mocks";
-import { formatPhone, LoginForm, SignupForm } from "@/components/AuthForms";
+import { LoginForm, SignupForm } from "@/components/AuthForms";
 import { ApiError } from "@/lib/api";
 import { login, signup } from "@/lib/auth";
+import { formatPhone } from "@/lib/phone";
 
 vi.mock("@/lib/auth", async (original) => ({
   ...(await original<typeof import("@/lib/auth")>()),

@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import { ApiError } from "@/lib/api";
 import { afterLoginPath, login, safeNext, signup, type Member } from "@/lib/auth";
+import { formatPhone } from "@/lib/phone";
 
 const inputClass =
   "mt-1 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-brand";
@@ -58,17 +59,6 @@ function fieldOf(message: string): { field: SignupField | null; text: string } {
   const head = prefixed ? prefixed[1] : message;
   const field = (Object.keys(FIELD_WORDS) as SignupField[]).find((f) => FIELD_WORDS[f].some((w) => head.includes(w)));
   return { field: field ?? null, text };
-}
-
-// 010-1234-5678 · 02-123-4567 처럼 하이픈을 넣어요 (숫자만 남겨서 다시 나눠요)
-export function formatPhone(value: string): string {
-  const d = value.replace(/\D/g, "").slice(0, 11);
-  const area = d.startsWith("02") ? 2 : 3; // 서울 02 만 두 자리
-  const rest = d.slice(area);
-  if (!rest) return d;
-  if (rest.length <= 4) return `${d.slice(0, area)}-${rest}`;
-  const mid = rest.length === 7 ? 3 : 4; // 가운데: 7자리 남으면 3 (010-123-4567), 아니면 4
-  return `${d.slice(0, area)}-${rest.slice(0, mid)}-${rest.slice(mid)}`;
 }
 
 // 제출 → 성공하면 관리자는 관리자 화면, 고객은 원래 보던 주소(next)로. 실패하면 서버 메시지를 그대로 보여 줘요
