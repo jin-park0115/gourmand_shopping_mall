@@ -38,7 +38,7 @@ async function CategoryCards() {
   );
 }
 
-// 전체 카테고리 (모바일 하단 '카테고리' 탭, 홈의 '전체 카테고리')
+// 전체 카테고리 (홈 '어떤 간식이 당기세요?'의 '전체 카테고리 ›')
 export default function CategoryIndexPage() {
   return (
     <main className="mx-auto max-w-6xl px-4 py-6 md:py-8">
