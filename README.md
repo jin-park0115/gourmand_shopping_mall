@@ -337,7 +337,10 @@ npx tsc --noEmit && npm run lint && npm run build
 | UC | 실패 케이스 · 로그아웃 후 401 검증 |
 |---|---|
 | A 상품 · 리뷰 | [docs/verification/A-review-failures.md](docs/verification/A-review-failures.md) (Swagger · 화면 캡처, DB 재조회), `tests/test_review_failures.py` |
+| B 장바구니 · 주문 | [docs/verification/B-cart-order-failures.md](docs/verification/B-cart-order-failures.md), `tests/test_cart_order_failures.py` |
 | C 관리자 주문 | `tests/test_admin_failures.py`, `tests/test_admin_logout.py` |
+| 통합 시나리오 | [docs/verification/integration-scenario.md](docs/verification/integration-scenario.md) (회원가입 → 주문 → 관리자 배송 → 고객 취소 차단), `tests/test_integration_scenario.py` |
+| 최종 QA | [docs/verification/final-qa.md](docs/verification/final-qa.md) (8개 영역 점검, 수정 전 · 후 같은 요청 비교) |
 
 - 모든 실패는 `{code, message}` 모양이에요. 형식 오류는 400이 아니라 **422 `VALIDATION_ERROR`**로 통일했어요.
 - 로그아웃한 토큰은 블랙리스트에 들어가서, 같은 토큰으로 다시 요청하면 401이에요.
