@@ -340,6 +340,7 @@ npm run e2e              # 크롬 · Safari 엔진(WebKit) · 모바일(iPhone 1
 npx playwright test --ui # 화면을 보면서 하나씩
 ```
 
+- PR · develop/main push마다 GitHub Actions([`.github/workflows/test.yml`](.github/workflows/test.yml))가 위 세 가지를 모두 돌려요 (약 2분). 빨간 X가 뜨면 머지 전에 확인하세요.
 - e2e는 **로컬 DB**에 테스트 회원(`e2e-…@test.com`) · 주문을 만들어요. 운영 사이트에는 돌리지 마세요.
 
 | UC | 실패 케이스 · 로그아웃 후 401 검증 |
