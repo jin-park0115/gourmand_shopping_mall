@@ -8,7 +8,7 @@ from application.product.service import ProductService
 from database import get_session
 from domain.product.product import ProductSort
 from presentation.product.schemas import CategoryOut, ProductOut, SuggestCountryOut, SuggestOut, SuggestProductOut
-from presentation.schemas import Page
+from presentation.schemas import MAX_ID, Page
 
 router = APIRouter(tags=["product"])
 
@@ -24,9 +24,9 @@ async def list_products(
     q: str | None = Query(None, max_length=50, description="검색어 (대소문자 · 띄어쓰기 무시, 자모 · 초성 · 동의어: 초코 → 초콜릿, ㄱㅇㅈㄹ → 곤약젤리)"),
     country: CountrySlug | None = Query(None, description="other = 일본 · 대만 · 중국 · 베트남이 아닌 나라"),
     category: str | None = Query(None, max_length=30, description="카테고리 slug (GET /categories)"),
-    ids: str | None = Query(None, pattern=r"^\d+(,\d+){0,99}$", description="쉼표로 구분한 상품 번호, 최대 100개 (픽 페이지용)"),
+    ids: str | None = Query(None, pattern=r"^\d{1,9}(,\d{1,9}){0,99}$", description="쉼표로 구분한 상품 번호, 최대 100개 (픽 페이지용)"),
     sort: ProductSort = Query(ProductSort.RECOMMEND),
-    page: int = Query(1, ge=1),
+    page: int = Query(1, ge=1, le=MAX_ID),
     size: int = Query(20, ge=1, le=100),
     service: ProductService = Depends(get_product_service),
 ) -> Page[ProductOut]:
@@ -60,7 +60,7 @@ async def suggest_products(
 
 @router.get("/products/{product_id}", response_model=ProductOut)
 async def get_product(
-    product_id: int = Path(ge=1), service: ProductService = Depends(get_product_service)
+    product_id: int = Path(ge=1, le=MAX_ID), service: ProductService = Depends(get_product_service)
 ) -> ProductOut:
     return ProductOut.of(await service.get(product_id))
 

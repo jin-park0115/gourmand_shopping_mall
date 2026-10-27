@@ -9,6 +9,10 @@ from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 
 
+# DB 번호 칸(PostgreSQL integer)이 받을 수 있는 가장 큰 값. 이보다 큰 번호 · page 는 422 로 막아요 (DB 까지 가면 500)
+MAX_ID = 2_147_483_647
+
+
 class CamelModel(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 

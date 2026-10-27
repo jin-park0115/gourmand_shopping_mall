@@ -50,9 +50,18 @@ export async function logout() {
 
 export const fetchMe = () => api<Member>("/auth/me", undefined, { redirectOn401: false });
 
-// 로그인 후 돌아갈 주소: 우리 사이트 안의 주소만 (//evil.com 같은 외부 주소로 보내지 않게)
+// 로그인 후 돌아갈 주소: 우리 사이트 안의 주소만 (외부 사이트로 보내지 않게).
+// "//evil.com" 뿐 아니라 "/\evil.com" 도 브라우저는 "\" 를 "/" 로 읽어 다른 사이트로 가요.
+// 그래서 글자 검사 대신 브라우저와 같은 규칙(URL)으로 해석해서 우리 주소인지 확인해요
+const SAME_SITE = "https://gourmand.invalid";
 export function safeNext(next: string | null) {
-  return next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
+  if (!next || !next.startsWith("/")) return "/";
+  try {
+    const url = new URL(next, SAME_SITE);
+    return url.origin === SAME_SITE ? url.pathname + url.search + url.hash : "/";
+  } catch {
+    return "/";
+  }
 }
 
 // 로그인 후 갈 곳: 관리자는 관리자 화면, 고객은 원래 보던 주소
