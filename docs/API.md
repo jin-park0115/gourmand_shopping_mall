@@ -352,6 +352,8 @@ username=kim@gourmand.com&password=secret-123
 토큰(JWT HS256)에는 `sub`(member_id, 문자열) · `role` · `jti`(토큰 id, 로그아웃 블랙리스트용) · `exp` · `iat` 가 들어 있어요.
 이메일이 없을 때와 비밀번호가 틀렸을 때 모두 같은 401 "이메일 또는 비밀번호가 올바르지 않아요." 예요 (가입 여부가 드러나지 않게).
 
+**연속 실패 잠금**: 같은 이메일로 10분 안에 5번 틀리면 10분 동안 429 `TOO_MANY_REQUESTS` "로그인을 5번 잘못 시도해서 잠시 막았어요. N분 뒤에 다시 시도해 주세요." (그동안은 비밀번호가 맞아도 막혀요. 없는 이메일도 똑같이 세요). 성공하면 실패 기록을 지워요. 규칙: `domain/auth/login_guard.py`
+
 ### POST /auth/logout · GET /auth/me
 
 `Authorization: Bearer <access_token>` 을 보내요. 로그아웃하면 그 토큰의 `jti` 를 만료 시각까지 `token_blacklist` 에 넣어서, 같은 토큰으로 다시 요청하면 401 "로그아웃된 토큰이에요. 다시 로그인해 주세요." 예요. 다른 기기에서 받은 토큰은 그대로 쓸 수 있어요.
