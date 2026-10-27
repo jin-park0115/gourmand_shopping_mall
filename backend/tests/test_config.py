@@ -1,5 +1,6 @@
-"""SCRUM-59 Neon 연결 주소를 asyncpg 형식으로 바꾸는지 검사합니다."""
+"""SCRUM-59 Neon 연결 주소를 asyncpg 형식으로 바꾸는지, 약한 JWT 키를 막는지 검사합니다."""
 import pytest
+from pydantic import ValidationError
 
 from core.config import Settings
 
@@ -25,3 +26,21 @@ def test_database_url_is_normalized_for_asyncpg(given: str, expected: str) -> No
 def test_cors_origins_ignore_spaces_and_trailing_slash() -> None:
     settings = Settings(cors_origins=" https://gourmand.vercel.app/ , http://localhost:3000,")
     assert settings.cors_origin_list == ["https://gourmand.vercel.app", "http://localhost:3000"]
+
+
+@pytest.mark.parametrize("weak", ["change-me", "secret", "short-key", "x" * 31])
+def test_weak_jwt_secret_is_rejected(weak: str) -> None:
+    with pytest.raises(ValidationError, match="JWT_SECRET_KEY"):
+        Settings(_env_file=None, jwt_secret_key=weak)
+
+
+def test_missing_jwt_secret_falls_back_to_default_and_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+    # 환경변수도 .env 도 없이 띄우면 기본값 change-me 가 들어가는데, 그대로 시작하면 안 돼요
+    monkeypatch.delenv("JWT_SECRET_KEY", raising=False)
+    with pytest.raises(ValidationError, match="JWT_SECRET_KEY"):
+        Settings(_env_file=None)
+
+
+def test_long_random_jwt_secret_is_accepted() -> None:
+    key = "a" * 32
+    assert Settings(_env_file=None, jwt_secret_key=key).jwt_secret_key == key

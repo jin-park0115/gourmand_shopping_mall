@@ -1,8 +1,12 @@
 from functools import lru_cache
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
+
+# 예시 · 기본값으로 쓰인 적 있는 키. 길이와 상관없이 막아요
+WEAK_JWT_SECRETS = {"change-me", "changeme", "secret", "your-secret-key"}
+MIN_JWT_SECRET_BYTES = 32
 
 
 class Settings(BaseSettings):
@@ -13,7 +17,8 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/gourmand"
     cors_origins: str = "http://localhost:3000"
 
-    jwt_secret_key: str = "change-me"
+    # 기본값은 일부러 막혀 있어요. .env 나 배포 환경변수에 꼭 따로 넣어 주세요 (아래 _strong_jwt_secret)
+    jwt_secret_key: str = Field("change-me", validate_default=True)
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
 
@@ -37,6 +42,18 @@ class Settings(BaseSettings):
         if sslmode and "ssl" not in query:
             query["ssl"] = sslmode
         return url.set(query=query).render_as_string(hide_password=False)
+
+    @field_validator("jwt_secret_key")
+    @classmethod
+    def _strong_jwt_secret(cls, value: str) -> str:
+        """키를 안 넣고 띄우면 누구나 아는 "change-me" 로 관리자 토큰을 위조할 수 있어서, 아예 시작을 막아요.
+        HS256 키는 32바이트 이상을 권해요 (RFC 7518)."""
+        if value.strip() in WEAK_JWT_SECRETS or len(value.encode()) < MIN_JWT_SECRET_BYTES:
+            raise ValueError(
+                f"JWT_SECRET_KEY 를 {MIN_JWT_SECRET_BYTES}바이트 이상의 무작위 값으로 설정해 주세요. "
+                'backend/.env 에 넣거나 배포 환경변수로 주면 돼요. 만들기: python -c "import secrets; print(secrets.token_hex(32))"'
+            )
+        return value
 
     @property
     def cors_origin_list(self) -> list[str]:
