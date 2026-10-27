@@ -57,6 +57,29 @@ async def test_search_is_case_insensitive_and_literal(client) -> None:
     assert len(await _ids(client, q="%")) < 60 and len(await _ids(client, q="_")) < 60
 
 
+@pytest.mark.parametrize(
+    ("q", "expected"),
+    [
+        ("초코", {5, 7, 10, 32, 42, 45, 49, 55}),  # 초콜릿이 상품명에 있는 상품들 (자모 비교)
+        ("초콜렛", {5, 7, 10, 32, 42, 45, 49, 55}),  # 동의어
+        ("ㄱㅇㅈㄹ", {3, 30}),  # 초성: 곤약젤리 · 곤약 젤리
+        ("곤야", {3, 30}),  # 받침 치기 전
+    ],
+)
+async def test_search_jamo_choseong_and_synonyms(client, q, expected) -> None:
+    ids = await _ids(client, q=q)
+    assert expected <= set(ids)
+    # 추천순: 상품명에서 찾은 상품이 설명에서만 찾은 상품(예: 6번)보다 먼저. 품절(5번)은 규칙대로 맨 뒤
+    in_stock = expected - SOLD_OUT
+    assert set(ids[: len(in_stock)]) == in_stock
+
+
+async def test_search_works_with_filters_and_sort(client) -> None:
+    ids = await _ids(client, q="초코", country="japan", sort="low")
+    assert set(ids) >= {5, 7, 10} and not set(ids) & {32, 42, 45, 49, 55}  # 일본 것만
+    assert ids[-1] == 5  # 품절(5)은 가격순이어도 맨 뒤
+
+
 async def test_filters(client) -> None:
     other = await _ids(client, country="other")
     assert len(other) == 20 and 41 in other and 1 not in other
