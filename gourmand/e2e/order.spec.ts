@@ -10,7 +10,8 @@ test("회원가입부터 주문까지", async ({ page }, testInfo) => {
   // 회원가입 (끝나면 바로 로그인돼서 홈으로)
   await page.goto("/signup", { waitUntil: "networkidle" });
   await page.getByRole("textbox", { name: "이메일" }).fill(email);
-  await page.locator('input[name="password"]').fill(password); // 레이블에 '보기' 버튼 글자가 섞여서 name 으로
+  // 레이블에 '보기' 버튼 글자가 섞여서 name 으로. 스트리밍 중엔 숨은 복사본이 잠깐 있어서 보이는 것만
+  await page.locator('input[name="password"]:visible').fill(password);
   await page.getByRole("textbox", { name: "비밀번호 확인" }).fill(password);
   await expect(page.getByText("비밀번호가 같아요 ✓")).toBeVisible();
   await page.getByRole("textbox", { name: "이름" }).fill("김테스트");

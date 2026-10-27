@@ -53,6 +53,7 @@ jobs:
           cache-dependency-path: gourmand/package-lock.json
       - run: npm ci
       - run: npm run lint
+      - run: npx next typegen # LayoutProps 같은 라우트 타입은 Next 가 만들어 줘요 (빌드 전에는 없어요)
       - run: npx tsc --noEmit
       - run: npm test
 
@@ -85,7 +86,8 @@ jobs:
           uv sync --frozen --no-dev
           uv run alembic upgrade head
           uv run python scripts/seed.py
-          nohup uv run uvicorn main:app --app-dir src --host 127.0.0.1 --port 8000 > ../backend.log 2>&1 &
+          # uv run 으로 띄우면 uv 캐시 잠금을 계속 쥐고 있어서 job 마지막 캐시 정리가 멈춰요
+          nohup .venv/bin/uvicorn main:app --app-dir src --host 127.0.0.1 --port 8000 > ../backend.log 2>&1 &
           curl -fsS --retry 30 --retry-delay 1 --retry-all-errors http://127.0.0.1:8000/health
 
       - name: 프론트 빌드
