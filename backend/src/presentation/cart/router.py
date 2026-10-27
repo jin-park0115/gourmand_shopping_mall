@@ -10,6 +10,7 @@ from database import get_session
 from domain.auth.member import CurrentUser
 from presentation.auth.dependencies import get_current_user, require_customer
 from presentation.cart.schemas import CartAddIn, CartOut, CartQuantityIn
+from presentation.schemas import MAX_ID
 
 router = APIRouter(prefix="/cart", tags=["cart"])
 
@@ -36,7 +37,7 @@ async def add_item(
 @router.patch("/items/{product_id}", response_model=CartOut)
 async def set_quantity(
     body: CartQuantityIn,
-    product_id: int = Path(ge=1),
+    product_id: int = Path(ge=1, le=MAX_ID),
     user: CurrentUser = Depends(get_current_user),
     service: CartService = Depends(get_cart_service),
 ) -> CartOut:
@@ -45,7 +46,7 @@ async def set_quantity(
 
 @router.delete("/items/{product_id}", response_model=CartOut)
 async def remove_item(
-    product_id: int = Path(ge=1),
+    product_id: int = Path(ge=1, le=MAX_ID),
     user: CurrentUser = Depends(get_current_user),
     service: CartService = Depends(get_cart_service),
 ) -> CartOut:

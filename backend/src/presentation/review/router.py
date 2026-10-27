@@ -7,7 +7,7 @@ from database import get_session
 from domain.auth.member import CurrentUser
 from presentation.auth.dependencies import get_current_user, get_optional_user
 from presentation.review.schemas import ReviewCreateIn, ReviewOut, ReviewUpdateIn, ReviewWritableOut
-from presentation.schemas import Page
+from presentation.schemas import MAX_ID, Page
 
 router = APIRouter(tags=["review"])
 
@@ -18,8 +18,8 @@ def get_review_service(session: AsyncSession = Depends(get_session)) -> ReviewSe
 
 @router.get("/products/{product_id}/reviews", response_model=Page[ReviewOut])
 async def list_reviews(
-    product_id: int = Path(ge=1),
-    page: int = Query(1, ge=1),
+    product_id: int = Path(ge=1, le=MAX_ID),
+    page: int = Query(1, ge=1, le=MAX_ID),
     size: int = Query(10, ge=1, le=50),
     user: CurrentUser | None = Depends(get_optional_user),  # 공개. 로그인했으면 isMine 계산
     service: ReviewService = Depends(get_review_service),
@@ -31,7 +31,7 @@ async def list_reviews(
 
 @router.get("/products/{product_id}/reviews/writable", response_model=ReviewWritableOut)
 async def review_writable(
-    product_id: int = Path(ge=1),
+    product_id: int = Path(ge=1, le=MAX_ID),
     user: CurrentUser = Depends(get_current_user),
     service: ReviewService = Depends(get_review_service),
 ) -> ReviewWritableOut:
@@ -42,7 +42,7 @@ async def review_writable(
 @router.post("/products/{product_id}/reviews", response_model=ReviewOut, status_code=status.HTTP_201_CREATED)
 async def create_review(
     body: ReviewCreateIn,
-    product_id: int = Path(ge=1),
+    product_id: int = Path(ge=1, le=MAX_ID),
     user: CurrentUser = Depends(get_current_user),
     service: ReviewService = Depends(get_review_service),
 ) -> ReviewOut:
@@ -53,7 +53,7 @@ async def create_review(
 @router.patch("/reviews/{review_id}", response_model=ReviewOut)
 async def update_review(
     body: ReviewUpdateIn,
-    review_id: int = Path(ge=1),
+    review_id: int = Path(ge=1, le=MAX_ID),
     user: CurrentUser = Depends(get_current_user),
     service: ReviewService = Depends(get_review_service),
 ) -> ReviewOut:
@@ -63,7 +63,7 @@ async def update_review(
 
 @router.delete("/reviews/{review_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_review(
-    review_id: int = Path(ge=1),
+    review_id: int = Path(ge=1, le=MAX_ID),
     user: CurrentUser = Depends(get_current_user),
     service: ReviewService = Depends(get_review_service),
 ) -> Response:
