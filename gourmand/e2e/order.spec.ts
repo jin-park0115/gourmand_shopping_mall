@@ -38,7 +38,9 @@ test("회원가입부터 주문까지", async ({ page }, testInfo) => {
   await page.getByRole("button", { name: "주문 완료하기" }).click();
 
   // 주문 완료 → 마이페이지 주문 내역에 '접수'로
-  await expect(page.getByRole("link", { name: "쇼핑 계속하기" })).toBeVisible();
+  // 주문 API → 완료 화면 이동 → 주문 다시 불러오기라 느린 CI 에서는 5초를 넘기기도 해요
+  await expect(page).toHaveURL(/\/order\/complete\?orderId=\d+/, { timeout: 15_000 });
+  await expect(page.getByRole("link", { name: "쇼핑 계속하기" })).toBeVisible({ timeout: 15_000 });
   await page.goto("/mypage");
   await expect(page.getByText(productName!).first()).toBeVisible();
   await expect(page.getByText("접수", { exact: true }).filter({ visible: true }).first()).toBeVisible(); // 숨은 필터 <option> 말고

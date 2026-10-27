@@ -102,12 +102,13 @@ jobs:
           npx playwright install --with-deps chromium webkit
           npm run e2e
 
-      - name: 실패하면 리포트 · 백엔드 로그 올리기
-        if: failure()
+      - name: 리포트 · 백엔드 로그 올리기 (재시도로 통과한 테스트의 실패 기록도 들어 있어요)
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: e2e-report
           path: |
             gourmand/playwright-report/
+            gourmand/test-results/
             backend.log
           retention-days: 7
