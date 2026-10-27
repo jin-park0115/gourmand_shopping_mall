@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
+import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { cartErrorMessage, useCart } from "@/components/CartProvider";
 import { Product } from "@/types/product";
 
-// 상세 페이지의 수량 선택 + 장바구니 담기
+// 상세 페이지의 수량 선택 + 장바구니 담기 (담으면 '장바구니로 이동할까요?' 창)
 export default function ProductPurchase({
   p,
   price,
@@ -16,11 +16,15 @@ export default function ProductPurchase({
   price: number;
   soldOut: boolean;
 }) {
+  const router = useRouter();
   const { addItem, items } = useCart();
   const [quantity, setQuantity] = useState(1);
-  const [added, setAdded] = useState(false);
+  // 창에 보여 줄 방금 담은 수량과, 담기 전에 이미 장바구니에 있던 수량 (서버가 더해 줘요)
+  const [added, setAdded] = useState({ quantity: 0, before: 0 });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // 브라우저 기본 모달: Esc 로 닫기 · 창 밖 포커스 막기 · 배경 어둡게를 알아서 해 줘요
+  const dialog = useRef<HTMLDialogElement>(null);
 
   // 이미 장바구니에 있는 수량까지 고려해서 최대 수량 제한
   const inCart = items.find((i) => i.id === p.id)?.quantity ?? 0;
@@ -30,12 +34,12 @@ export default function ProductPurchase({
   async function handleAdd() {
     setBusy(true);
     setError(null);
-    setAdded(false);
     try {
       // 로그인하지 않았으면 로그인 안내 창을 띄워요 (false)
       if (await addItem(p.id, quantity)) {
-        setAdded(true);
+        setAdded({ quantity, before: inCart });
         setQuantity(1);
+        dialog.current?.showModal();
       }
     } catch (e) {
       setError(cartErrorMessage(e));
@@ -106,18 +110,51 @@ export default function ProductPurchase({
         장바구니 담기
       </button>
 
-      {/* 담은 뒤 안내 · 실패 이유 */}
-      <div aria-live="polite">
-        {error && <p className="mt-3 text-sm text-red-500">{error}</p>}
-        {added && (
-          <div className="mt-3 flex items-center justify-between rounded-xl border border-brand-line bg-brand-soft px-4 py-3 text-sm">
-            <span className="font-semibold text-brand">장바구니에 담았어요 ✓</span>
-            <Link href="/cart" className="font-bold text-brand underline-offset-2 hover:underline">
-              장바구니 보기 ›
-            </Link>
+      {/* 실패 이유 */}
+      <div aria-live="polite">{error && <p className="mt-3 text-sm text-red-500">{error}</p>}</div>
+
+      {/* 담은 뒤: 장바구니로 갈지 묻기. 창 밖(어두운 배경)을 눌러도 닫혀요 */}
+      <dialog
+        ref={dialog}
+        aria-labelledby="cart-added-title"
+        onClick={(e) => e.target === e.currentTarget && dialog.current?.close()}
+        className="m-auto w-[calc(100%-2rem)] max-w-sm rounded-2xl p-0 shadow-xl backdrop:bg-black/40"
+      >
+        <div className="p-6 text-center">
+          <p id="cart-added-title" className="text-lg font-bold text-gray-900">
+            {added.before > 0 ? "이미 담긴 상품이라 수량을 더했어요 ✓" : "장바구니에 담았어요 ✓"}
+          </p>
+          <p className="mt-1 text-sm text-gray-500">
+            {p.name} · {added.quantity}개{added.before > 0 && " 추가"}
+          </p>
+          {added.before > 0 && (
+            <p className="mt-0.5 text-sm font-semibold text-brand">
+              장바구니에 총 {added.before + added.quantity}개
+            </p>
+          )}
+          <p className="mt-4 text-sm text-gray-700">장바구니로 이동할까요?</p>
+          <div className="mt-5 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              autoFocus
+              onClick={() => dialog.current?.close()}
+              className="rounded-xl border border-gray-300 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+            >
+              쇼핑 계속하기
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                dialog.current?.close();
+                router.push("/cart");
+              }}
+              className="rounded-xl bg-brand py-3 text-sm font-bold text-white transition hover:bg-brand-dark"
+            >
+              장바구니로 이동
+            </button>
           </div>
-        )}
-      </div>
+        </div>
+      </dialog>
     </div>
   );
 }
