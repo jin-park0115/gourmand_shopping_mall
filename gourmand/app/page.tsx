@@ -29,7 +29,8 @@ const HOME_COUNT = 4;
 async function HomeProducts() {
   const products = (await fetchProducts()).items;
 
-  const newProducts = products.filter((p) => p.isNew).sort(soldOutLast);
+  // 최근 등록(번호가 큰) 순. 서버 '신상품순'(sort=new)과 같은 규칙
+  const newProducts = products.filter((p) => p.isNew).sort((a, b) => soldOutLast(a, b) || b.id - a.id);
   // 신상품 줄에 이미 나온 상품은 할인 줄에서 빼기 (같은 상품이 반복되지 않게)
   const saleProducts = products
     .filter((p) => hasDiscount(p) && !p.isNew)
