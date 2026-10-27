@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { ApiError, loginHref } from "@/lib/api";
 import { fetchOrder, type Order } from "@/lib/orders";
+import { ListSkeleton } from "@/components/Skeletons";
 
 type Loaded = { orderId: number; order: Order | null; error: string | null };
 
@@ -33,7 +34,7 @@ export default function OrderComplete() {
     }, [orderId, member]);
 
     if (!ready || (orderId && member && loaded?.orderId !== orderId)) {
-        return <p className="py-20 text-center text-gray-500">불러오는 중...</p>;
+        return <ListSkeleton rows={2} thumb label="주문 정보를 불러오는 중이에요" className="py-10" />;
     }
 
     if (orderId && !member) {

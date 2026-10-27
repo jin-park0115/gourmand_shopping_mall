@@ -103,7 +103,7 @@
 
 | 쿼리 | 타입 | 필수 | 기본 | 설명 |
 | --- | --- | --- | --- | --- |
-| `q` | 문자열 (최대 50자) | - | - | 검색어. 대소문자 · 띄어쓰기 무시 ("도쿄 바나나" = "도쿄바나나"). 상품명 · 나라 · 카테고리 · 제조사 · 식품유형 · 설명에서 찾아요 |
+| `q` | 문자열 (최대 50자) | - | - | 검색어. 대소문자 · 띄어쓰기 무시 ("도쿄 바나나" = "도쿄바나나"). 상품명 · 나라 · 카테고리 · 제조사 · 식품유형 · 설명에서 찾아요. 한글은 자모로 비교 ("초코" → 초콜릿, "곤야" → 곤약), 자음만 치면 상품명 초성 검색 ("ㄱㅇㅈㄹ" → 곤약젤리), 작은 동의어 표 ("초콜렛" → 초콜릿). 규칙: `domain/product/search.py` |
 | `country` | `japan` `taiwan` `china` `vietnam` `other` | - | 전체 | `other` = 앞의 4개국이 아닌 나라 |
 | `category` | 카테고리 slug | - | 전체 | `GET /categories` 의 `slug` |
 | `ids` | 쉼표로 구분한 정수 (최대 100개) | - | - | 픽 페이지용 (`ids=1,5,9`). 없는 id는 빠져요 |
@@ -134,6 +134,28 @@ GET /products?q=도쿄바나나&country=japan&sort=low&page=1&size=20
 | 422 | `VALIDATION_ERROR` | `sort=cheap`, `country=korea`, `size=500`, `ids=a,b`, `q` 50자 초과 |
 
 없는 `category` slug는 오류가 아니라 빈 목록(`total: 0`)이에요. 화면은 "결과 없음"을 보여 주면 돼요.
+
+### GET /products/suggest
+
+검색창 자동완성. 치는 동안 맞는 카테고리 · 나라 · 상품을 보여 줘요. 찾는 규칙은 `GET /products?q=`와 같아요 (자모 · 초성 · 동의어). 로그인 불필요.
+
+| 쿼리 | 형식 | 기본 | 설명 |
+|---|---|---|---|
+| `q` | 문자열 1~50자 (필수) | - | 치는 중인 글자 |
+| `limit` | 1~10 | 5 | 상품 몇 개까지 |
+
+```json
+{
+  "total": 9,
+  "products": [{ "id": 7, "name": "키노코노야마 초콜릿 쿠키", "imageUrl": "/images/products/7.webp", "price": 3400, "salePrice": 3400, "isSoldOut": false }],
+  "categories": [{ "slug": "chocolate", "name": "초콜릿", "productCount": 7 }],
+  "countries": []
+}
+```
+
+- `products`: 추천순 상위 `limit`개 (상품명에서 찾은 상품이 먼저, 품절은 뒤), `total`: 전체 검색 결과 수
+- `categories` · `countries`: 이름이 맞는 것. 주요 4개국이 아닌 나라는 `slug: "other"`("그 외")
+- 422 `VALIDATION_ERROR`: `q` 없음 · 51자 이상, `limit` 범위 밖
 
 ### GET /products/{productId}
 

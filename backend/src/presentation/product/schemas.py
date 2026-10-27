@@ -44,3 +44,31 @@ class CategoryOut(CamelModel):
     @classmethod
     def of(cls, category: CategorySummary) -> "CategoryOut":
         return cls(**vars(category))
+
+
+class SuggestProductOut(CamelModel):
+    """자동완성 한 줄에 필요한 것만."""
+
+    id: int
+    name: str
+    image_url: str
+    price: int
+    sale_price: int
+    is_sold_out: bool
+
+    @classmethod
+    def of(cls, listing: ProductListing) -> "SuggestProductOut":
+        p = listing.product
+        return cls(id=p.id, name=p.name, image_url=p.image_url, price=p.price, sale_price=p.sale_price, is_sold_out=p.is_sold_out)
+
+
+class SuggestCountryOut(CamelModel):
+    slug: str
+    name: str
+
+
+class SuggestOut(CamelModel):
+    total: int  # 검색 결과 전체 개수 ("전체 결과 N개 보기")
+    products: list[SuggestProductOut]
+    categories: list[CategoryOut]
+    countries: list[SuggestCountryOut]

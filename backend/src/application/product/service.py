@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from domain.exceptions import NotFoundError
 from domain.product.product import CategorySummary, ProductListing, ProductSort
+from domain.product.search import SearchQuery
 from infrastructure.product.repositories import ProductRepository
 
 
@@ -33,3 +34,13 @@ class ProductService:
 
     async def categories(self) -> list[CategorySummary]:
         return await self.products.list_categories()
+
+    async def suggest(self, q: str, *, limit: int) -> tuple[list[ProductListing], int, list[CategorySummary], list[tuple[str, str]]]:
+        """검색창 자동완성: (추천순 상품 limit 개, 전체 개수, 이름이 맞는 카테고리, 이름이 맞는 나라)."""
+        query = SearchQuery(q)
+        if not query:
+            return [], 0, [], []
+        listings, total = await self.products.search(q=q, sort=ProductSort.RECOMMEND, page=1, size=limit)
+        categories = [c for c in await self.products.list_categories() if query.matches_name(c.name)]
+        countries = [(name, slug) for name, slug in await self.products.list_countries() if query.matches_name(name)]
+        return listings, total, categories, countries

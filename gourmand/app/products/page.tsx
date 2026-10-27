@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 
 import ProductResults from "@/components/ProductResults";
+import { ProductGridSkeleton } from "@/components/Skeletons";
 
 type ProductsPageProps = {
   searchParams: Promise<{
@@ -34,7 +35,7 @@ export default function ProductsPage({ searchParams }: ProductsPageProps) {
   return (
     <main className="mx-auto max-w-6xl px-4 py-6 md:py-8">
       <Suspense
-        fallback={<p className="text-sm text-gray-500">상품을 불러오는 중이에요…</p>}
+        fallback={<ProductGridSkeleton />}
       >
         <Results searchParams={searchParams} />
       </Suspense>

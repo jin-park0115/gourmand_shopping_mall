@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { useAuth } from "@/components/AuthProvider";
 import { useToast } from "@/components/Toast";
+import { ListSkeleton } from "@/components/Skeletons";
 import { ApiError, loginHref } from "@/lib/api";
 import {
   CONTENT_MAX,
@@ -251,6 +252,8 @@ export default function ProductReviews({ productId }: { productId: number }) {
       {loaded && !error && items.length === 0 && (
         <p className="mt-6 py-8 text-center text-sm text-gray-500">아직 리뷰가 없어요. 첫 리뷰를 남겨 주세요!</p>
       )}
+
+      {!loaded && <ListSkeleton rows={3} label="리뷰를 불러오는 중이에요" className="mt-4" />}
 
       <ul className="mt-4 divide-y divide-gray-200 border-t border-gray-200">
         {items.map((r) => (

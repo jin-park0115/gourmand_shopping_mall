@@ -1,6 +1,4 @@
 """상품 Repository: ORM 모델 ↔ 도메인 객체 변환, 비동기 조회·저장."""
-import re
-
 from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import contains_eager, joinedload
@@ -12,6 +10,7 @@ from domain.product.product import (
     ProductListing,
     ProductSort,
 )
+from domain.product.search import SearchQuery
 from infrastructure.product.models import CategoryModel, CountryModel, ProductModel
 from infrastructure.review.models import ReviewModel
 
@@ -53,16 +52,12 @@ class ProductRepository:
         size: int = 20,
     ) -> tuple[list[ProductListing], int]:
         """검색 · 필터 · 정렬 · 페이지 (프론트 lib/products.ts findProducts 와 같은 규칙). (목록, 전체 개수)"""
-        keyword = _normalize(q) if q else ""
+        query = SearchQuery(q) if q else None
         conditions = []
-        if keyword:
-            haystack = _normalized(
-                func.concat_ws(
-                    " ", ProductModel.name, CountryModel.name, CategoryModel.name,
-                    ProductModel.manufacturer, ProductModel.food_type, ProductModel.description,
-                )
-            )
-            conditions.append(haystack.like(f"%{_escape_like(keyword)}%", escape="\\"))
+        name_hits: list[int] = []
+        if query:
+            hits, name_hits = await self._search_ids(query)
+            conditions.append(ProductModel.product_id.in_(hits))
         if country_slug == OTHER_COUNTRY_SLUG:
             conditions.append(CountryModel.slug.is_(None))
         elif country_slug:
@@ -76,13 +71,13 @@ class ProductRepository:
             select(func.count()).select_from(ProductModel).join(ProductModel.country).join(ProductModel.category).where(*conditions)
         )
         stmt, rating, review_count = _listing_query()
-        name_first = case((_normalized(ProductModel.name).like(f"%{_escape_like(keyword)}%", escape="\\"), 0), else_=1)
+        name_first = case((ProductModel.product_id.in_(name_hits), 0), else_=1)
         sale_price = case(
             (and_(ProductModel.discount_price.is_not(None), ProductModel.discount_price < ProductModel.price), ProductModel.discount_price),
             else_=ProductModel.price,
         )
         order_by = {
-            ProductSort.RECOMMEND: [name_first, rating.desc()] if keyword else [rating.desc()],
+            ProductSort.RECOMMEND: [name_first, rating.desc()] if query else [rating.desc()],
             ProductSort.REVIEW: [review_count.desc()],
             ProductSort.LOW: [sale_price],
             ProductSort.HIGH: [sale_price.desc()],
@@ -96,6 +91,29 @@ class ProductRepository:
             .limit(size)
         )
         return [_to_listing(*row) for row in rows.all()], total
+
+    async def _search_ids(self, query: SearchQuery) -> tuple[list[int], list[int]]:
+        """검색어에 맞는 상품 번호 (전체, 상품명에서 찾은 것). 자모 · 초성 비교는 도메인(SearchQuery)이 해요.
+
+        ponytail: 검색할 때마다 상품 전체(지금 60개)의 글자를 읽어 파이썬에서 비교해요.
+        상품이 수천 개로 늘면 자모 · 초성을 DB 열로 미리 만들어 두고 SQL 로 찾도록 바꿔요.
+        """
+        rows = await self.session.execute(
+            select(
+                ProductModel.product_id, ProductModel.name, CountryModel.name, CategoryModel.name,
+                ProductModel.manufacturer, ProductModel.food_type, ProductModel.description,
+            )
+            .join(ProductModel.country)
+            .join(ProductModel.category)
+        )
+        hits, name_hits = [], []
+        for product_id, name, *fields in rows:
+            if query.matches_name(name):
+                name_hits.append(product_id)
+                hits.append(product_id)
+            elif query.matches(name, *fields):
+                hits.append(product_id)
+        return hits, name_hits
 
     async def get_listing(self, product_id: int) -> ProductListing | None:
         """상세 화면용: 상품 + 평점 · 리뷰 수."""
@@ -111,6 +129,11 @@ class ProductRepository:
             .order_by(CategoryModel.category_id)
         )
         return [CategorySummary(slug, name, count) for slug, name, count in rows.all()]
+
+    async def list_countries(self) -> list[tuple[str, str]]:
+        """(나라 이름, slug). 주요 4개국이 아니면 slug 는 other ("그 외")."""
+        rows = await self.session.execute(select(CountryModel.name, CountryModel.slug).order_by(CountryModel.country_id))
+        return [(name, slug or OTHER_COUNTRY_SLUG) for name, slug in rows.all()]
 
 
 def _listing_query():
@@ -134,21 +157,6 @@ def _listing_query():
         .options(contains_eager(ProductModel.country), contains_eager(ProductModel.category))
     )
     return stmt, rating, review_count
-
-
-def _normalize(text: str) -> str:
-    """검색어 비교용: 소문자 + 공백 제거 ("도쿄 바나나" = "도쿄바나나")."""
-    return re.sub(r"\s+", "", text).lower()
-
-
-def _normalized(column):
-    """_normalize 와 같은 변환을 DB 에서."""
-    return func.lower(func.regexp_replace(column, r"\s+", "", "g"))
-
-
-def _escape_like(text: str) -> str:
-    # 검색어의 % _ \ 는 글자 그대로 찾아요
-    return text.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
 
 
 def _to_listing(row: ProductModel, rating, review_count) -> ProductListing:

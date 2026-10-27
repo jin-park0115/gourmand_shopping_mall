@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
 import { cartErrorMessage, useCart } from "@/components/CartProvider";
 import { loginHref } from "@/lib/api";
+import { ListSkeleton } from "@/components/Skeletons";
 
 export default function CartView() {
     const {
@@ -38,7 +39,7 @@ export default function CartView() {
 
     // 로그인 확인 · 서버에서 불러오기 전에는 빈 장바구니로 깜빡이지 않게 대기
     if (!hydrated) {
-        return <p className="mt-6 text-sm text-gray-500">장바구니를 불러오는 중이에요…</p>;
+        return <ListSkeleton rows={3} thumb label="장바구니를 불러오는 중이에요" className="mt-6" />;
     }
 
     if (loadFailed) {
