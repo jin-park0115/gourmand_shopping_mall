@@ -42,6 +42,16 @@ def anyio_backend() -> str:
     return "asyncio"
 
 
+@pytest.fixture(autouse=True)
+def _reset_login_guard():
+    # 로그인 연속 실패 잠금은 서버 메모리라, 테스트끼리 실패 횟수가 이어지지 않게 매번 비워요
+    from application.auth.service import login_guard
+
+    login_guard.reset()
+    yield
+    login_guard.reset()
+
+
 @pytest.fixture
 async def db_session() -> AsyncIterator[AsyncSession]:
     url = _test_database_url()

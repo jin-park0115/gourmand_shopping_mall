@@ -4,6 +4,7 @@ import Link from "next/link";
 import { POPULAR_KEYWORDS } from "@/lib/products";
 import ProductResults from "@/components/ProductResults";
 import SearchField from "@/components/SearchField";
+import { firstParams } from "@/lib/params";
 
 type SearchPageProps = {
   searchParams: Promise<{
@@ -37,7 +38,7 @@ function SearchForm({ defaultValue }: { defaultValue?: string }) {
 }
 
 async function SearchContent({ searchParams }: SearchPageProps) {
-  const { q, country, category, sort } = await searchParams;
+  const { q, country, category, sort } = firstParams(await searchParams, "q", "country", "category", "sort");
   const keyword = q?.trim() || undefined;
 
   return (

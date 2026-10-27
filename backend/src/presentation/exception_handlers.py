@@ -19,6 +19,7 @@ from domain.exceptions import (
     InvalidValueError,
     NotFoundError,
     PermissionDeniedError,
+    TooManyRequestsError,
 )
 
 logger = logging.getLogger("gourmand.error")
@@ -30,6 +31,7 @@ STATUS_BY_ERROR: dict[type[AppError], int] = {
     NotFoundError: 404,
     AuthenticationError: 401,
     PermissionDeniedError: 403,
+    TooManyRequestsError: 429,
 }
 
 # 프레임워크가 내는 기본 영어 문구는 우리말로 바꿔요 (직접 적은 detail 은 그대로)

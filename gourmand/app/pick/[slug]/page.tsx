@@ -8,6 +8,7 @@ import CountryMenu from "@/components/CountryMenu";
 import ProductCard from "@/components/ProductCard";
 import CategoryFilter, { filterByCategory } from "@/components/CategoryFilter";
 import { ProductGridSkeleton } from "@/components/Skeletons";
+import { firstParams } from "@/lib/params";
 
 // params를 읽는 부분만 따로 분리 (Suspense 안에서 실행됨)
 async function PickProducts({
@@ -18,7 +19,7 @@ async function PickProducts({
   searchParams: Promise<{ category?: string }>;
 }) {
   const { slug } = await params;
-  const { category } = await searchParams;
+  const { category } = firstParams(await searchParams, "category");
   const pick = picks[slug];
 
   // 없는 주소(/pick/abc)는 404

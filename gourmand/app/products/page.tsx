@@ -2,6 +2,7 @@ import { Suspense } from "react";
 
 import ProductResults from "@/components/ProductResults";
 import { ProductGridSkeleton } from "@/components/Skeletons";
+import { firstParams } from "@/lib/params";
 
 type ProductsPageProps = {
   searchParams: Promise<{
@@ -14,7 +15,7 @@ type ProductsPageProps = {
 
 // 주소의 검색 조건(?q=...&country=...)을 읽는 부분 (Suspense 안에서 실행)
 async function Results({ searchParams }: ProductsPageProps) {
-  const { q, country, category, sort } = await searchParams;
+  const { q, country, category, sort } = firstParams(await searchParams, "q", "country", "category", "sort");
   const keyword = q?.trim() || undefined;
 
   return (
