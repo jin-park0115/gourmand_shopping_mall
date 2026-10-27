@@ -331,6 +331,7 @@ Jira 키 전체 표: [docs/jira-keys.md](docs/jira-keys.md)
 cd backend
 uv run pytest            # 계층 규칙 · 도메인 · API · 실패 케이스 (gourmand_test DB)
 cd ../gourmand
+npm test                 # Vitest: lib 함수 · 검색창 · 로그인/가입 폼 · 토스트 (서버 · 브라우저 없이)
 npx tsc --noEmit && npm run lint && npm run build
 ```
 

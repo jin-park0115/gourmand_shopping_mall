@@ -2,6 +2,7 @@
 
 확인일: 2026-10-27 · 수정 전 `5be5846` (QA 당시 develop) ↔ 수정 후 `450a985` (#58 ~ #62 머지 뒤 develop)
 자동 테스트: `uv run pytest` **490 passed** (QA 당시 441개). 새 테스트 [`test_cart_order_qa.py`](../../backend/tests/test_cart_order_qa.py) · [`test_input_hardening.py`](../../backend/tests/test_input_hardening.py) · [`test_login_guard.py`](../../backend/tests/test_login_guard.py) · [`test_admin_order_query.py`](../../backend/tests/test_admin_order_query.py) · [`test_config.py`](../../backend/tests/test_config.py)
+프론트 테스트: `npm test` (Vitest) **104 passed**. [`gourmand/tests/`](../../gourmand/tests/)에서 lib 함수(API 오류 · 401 이동 · safeNext · 가격 · 주소 파라미터)와 컴포넌트(검색 자동완성 · 회원가입/로그인 폼 · 토스트)를 검사해요
 
 ## 어떻게 점검했나
 
