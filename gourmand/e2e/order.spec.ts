@@ -1,11 +1,14 @@
 import { test, expect } from "@playwright/test";
 
+import { fakePostcode } from "./fake-postcode";
+
 // 회원가입 → 카테고리 → 상품 → 장바구니 → 주문 → 마이페이지 주문 내역
 // 실제 로컬 DB 에 회원 · 주문이 생겨요 (운영 사이트에는 돌리지 마세요)
 test("회원가입부터 주문까지", async ({ page }, testInfo) => {
   // 돌릴 때마다 새 회원. 브라우저 3개가 동시에 돌아서 이름 · 난수도 섞어요 (같은 이메일이면 409)
   const email = `e2e-${testInfo.project.name}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}@test.com`;
   const password = "test1234@!~";
+  await fakePostcode(page);
 
   // 회원가입 (끝나면 바로 로그인돼서 홈으로)
   await page.goto("/signup", { waitUntil: "networkidle" });
@@ -35,9 +38,21 @@ test("회원가입부터 주문까지", async ({ page }, testInfo) => {
   await page.getByRole("link", { name: "주문하기" }).click();
 
   await page.getByRole("textbox", { name: "받는 분" }).fill("김테스트");
-  await page.getByRole("textbox", { name: "휴대폰 번호" }).fill("01012345678");
-  await page.getByRole("textbox", { name: "우편번호" }).fill("12345");
-  await page.getByRole("textbox", { name: "주소", exact: true }).fill("구로101");
+  // 숫자만 쳐도 하이픈이 들어가요
+  const phone = page.getByRole("textbox", { name: "휴대폰 번호" });
+  await phone.pressSequentially("01012345678");
+  await expect(phone).toHaveValue("010-1234-5678");
+
+  // 우편번호 · 주소는 [주소 검색]으로만 (직접 칠 수 없어요) → 고르면 상세 주소로 커서
+  await expect(page.getByRole("textbox", { name: "우편번호" })).not.toBeEditable();
+  await page.getByRole("button", { name: "주소 검색" }).click();
+  await page.getByRole("dialog", { name: "주소 검색" }).getByRole("button", { name: "테헤란로 152 선택" }).click();
+  await expect(page.getByRole("dialog", { name: "주소 검색" })).toBeHidden();
+  await expect(page.getByRole("textbox", { name: "우편번호" })).toHaveValue("06236");
+  await expect(page.getByRole("textbox", { name: "주소", exact: true })).toHaveValue("서울 강남구 테헤란로 152 (역삼동)");
+  const detail = page.getByRole("textbox", { name: "상세 주소" });
+  await expect(detail).toBeFocused();
+  await detail.fill("101동 1001호");
   await page.getByRole("checkbox", { name: "이 배송 정보를 내 계정에 저장하고 다음 주문에도 사용하기" }).uncheck();
   await page.getByRole("button", { name: "주문 완료하기" }).click();
 
