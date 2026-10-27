@@ -2,13 +2,13 @@
 from pydantic import Field
 
 from domain.cart.cart import Cart, CartLine
-from presentation.schemas import CamelModel
+from presentation.schemas import MAX_ID, CamelModel
 
 MAX_QUANTITY = 999  # 요청 값 상한 (실제 상한은 재고)
 
 
 class CartAddIn(CamelModel):
-    product_id: int = Field(ge=1)
+    product_id: int = Field(ge=1, le=MAX_ID)
     quantity: int = Field(1, ge=1, le=MAX_QUANTITY)
 
 

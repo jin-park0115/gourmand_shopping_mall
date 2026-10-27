@@ -8,6 +8,11 @@ import os
 from collections.abc import AsyncIterator
 
 import pytest
+
+# 설정은 기본 JWT 키(change-me)면 시작을 막아요. .env 가 없는 곳(CI 등)에서도 테스트가 돌도록
+# 테스트 전용 키를 넣어 둬요. 반드시 core.config 를 import 하기 전에 해야 해요
+os.environ.setdefault("JWT_SECRET_KEY", "test-only-jwt-secret-key-at-least-32-bytes")
+
 from sqlalchemy import text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -40,6 +45,16 @@ async def _ensure_database(url: str) -> None:
 @pytest.fixture
 def anyio_backend() -> str:
     return "asyncio"
+
+
+@pytest.fixture(autouse=True)
+def _reset_login_guard():
+    # 로그인 연속 실패 잠금은 서버 메모리라, 테스트끼리 실패 횟수가 이어지지 않게 매번 비워요
+    from application.auth.service import login_guard
+
+    login_guard.reset()
+    yield
+    login_guard.reset()
 
 
 @pytest.fixture

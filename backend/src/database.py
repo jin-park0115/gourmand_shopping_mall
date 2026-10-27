@@ -9,7 +9,8 @@ from sqlalchemy.orm import DeclarativeBase
 
 from core.config import get_settings
 
-engine = create_async_engine(get_settings().database_url, pool_pre_ping=True)
+# hide_parameters: DB 오류 로그에 입력값(비밀번호 해시 · 이메일 · 주소 등)을 찍지 않아요
+engine = create_async_engine(get_settings().database_url, pool_pre_ping=True, hide_parameters=True)
 
 SessionLocal = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
 

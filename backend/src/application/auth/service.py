@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import Settings
+from domain.auth.login_guard import LoginGuard
 from domain.auth.member import CurrentUser, Member, normalize_email, validate_name, validate_password
 from domain.exceptions import AuthenticationError, ConflictError
 from infrastructure.auth.repositories import DUPLICATE_EMAIL_MESSAGE, MemberRepository, TokenBlacklistRepository
@@ -11,6 +12,9 @@ from infrastructure.auth.security import create_access_token, decode_access_toke
 
 LOGIN_FAILED_MESSAGE = "이메일 또는 비밀번호가 올바르지 않아요."
 LOGGED_OUT_MESSAGE = "로그아웃된 토큰이에요. 다시 로그인해 주세요."
+
+# 같은 이메일 연속 실패 잠금 (서버 한 대 기준, 서버 메모리). 테스트는 conftest 에서 매번 reset
+login_guard = LoginGuard()
 
 
 class AuthService:
@@ -32,9 +36,13 @@ class AuthService:
 
     async def login(self, *, email: str, password: str) -> tuple[str, int]:
         """(access token, 유효 시간 초). 이메일이 없든 비밀번호가 틀리든 같은 메시지로 401 이에요."""
-        member = await self.members.get_by_email(normalize_email(email))
+        email = normalize_email(email)
+        login_guard.check(email)  # 연속으로 틀려 잠겨 있으면 비밀번호가 맞아도 429
+        member = await self.members.get_by_email(email)
         if not verify_password(password, member.password_hash if member else None):
+            login_guard.failed(email)  # 없는 이메일도 똑같이 세요 (가입 여부를 알 수 없게)
             raise AuthenticationError(LOGIN_FAILED_MESSAGE)
+        login_guard.succeeded(email)
         return create_access_token(member, self.settings)
 
     async def authenticate(self, token: str) -> CurrentUser:

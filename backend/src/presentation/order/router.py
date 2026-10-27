@@ -11,7 +11,7 @@ from domain.order.order import MAX_PAGE_SIZE, MyOrderQuery, ShippingInfo
 from domain.order.status import OrderStatus
 from presentation.auth.dependencies import get_current_user, require_customer
 from presentation.order.schemas import OrderCreateIn, OrderOut, ShippingOut
-from presentation.schemas import Page
+from presentation.schemas import MAX_ID, Page
 
 router = APIRouter(prefix="/orders", tags=["order"])
 
@@ -30,7 +30,11 @@ async def place_order(
     shipping = ShippingInfo.of(
         recipient=body.recipient, phone=body.phone, zipcode=body.zipcode, address1=body.address1, address2=body.address2
     )
-    return OrderOut.of(await service.place_order(user.member_id, shipping, save_address=body.save_address))
+    return OrderOut.of(
+        await service.place_order(
+            user.member_id, shipping, save_address=body.save_address, expected_total=body.expected_total_price
+        )
+    )
 
 
 @router.get("", response_model=Page[OrderOut])
@@ -38,7 +42,7 @@ async def list_my_orders(
     order_status: OrderStatus | None = Query(None, alias="status", description="6개 주문 상태 중 하나"),
     date_from: date | None = Query(None, alias="from", description="주문일 시작 YYYY-MM-DD (KST)"),
     date_to: date | None = Query(None, alias="to", description="주문일 끝 YYYY-MM-DD (그날 포함)"),
-    page: int = Query(1, ge=1),
+    page: int = Query(1, ge=1, le=MAX_ID),
     size: int = Query(10, ge=1, le=MAX_PAGE_SIZE),
     user: CurrentUser = Depends(get_current_user),
     service: OrderService = Depends(get_order_service),
@@ -61,7 +65,7 @@ async def my_saved_address(
 
 @router.get("/{order_id}", response_model=OrderOut)
 async def get_my_order(
-    order_id: int = Path(ge=1),
+    order_id: int = Path(ge=1, le=MAX_ID),
     user: CurrentUser = Depends(get_current_user),
     service: OrderService = Depends(get_order_service),
 ) -> OrderOut:
@@ -71,7 +75,7 @@ async def get_my_order(
 
 @router.post("/{order_id}/cancel", response_model=OrderOut)
 async def cancel_my_order(
-    order_id: int = Path(ge=1),
+    order_id: int = Path(ge=1, le=MAX_ID),
     user: CurrentUser = Depends(get_current_user),
     service: OrderService = Depends(get_order_service),
 ) -> OrderOut:

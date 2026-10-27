@@ -16,7 +16,7 @@ from presentation.admin.schemas import (
     admin_order_page,
 )
 from presentation.auth.dependencies import require_admin
-from presentation.schemas import Page
+from presentation.schemas import MAX_ID, Page
 
 # 모든 엔드포인트가 관리자 전용이에요 (토큰 없음 · 로그아웃 401, 고객 403)
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin)])
@@ -36,7 +36,7 @@ async def list_orders(
     q: str | None = Query(None, max_length=50, description="주문번호 · 받는 사람 · 연락처 · 상품명"),
     date_from: date | None = Query(None, alias="from", description="주문일 시작 YYYY-MM-DD (KST)"),
     date_to: date | None = Query(None, alias="to", description="주문일 끝 YYYY-MM-DD (그날 포함)"),
-    page: int = Query(1, ge=1),
+    page: int = Query(1, ge=1, le=MAX_ID),
     size: int = Query(20, ge=1, le=100),
     service: AdminOrderQueryService = Depends(get_query_service),
 ) -> Page[AdminOrderOut]:
@@ -58,7 +58,7 @@ async def order_summary(
 
 @router.get("/orders/{order_id}", response_model=AdminOrderOut)
 async def get_order(
-    order_id: int = Path(ge=1), service: AdminOrderQueryService = Depends(get_query_service)
+    order_id: int = Path(ge=1, le=MAX_ID), service: AdminOrderQueryService = Depends(get_query_service)
 ) -> AdminOrderOut:
     return AdminOrderOut.from_view(await service.get_order(order_id))
 
@@ -66,7 +66,7 @@ async def get_order(
 @router.patch("/orders/{order_id}/status", response_model=AdminOrderOut)
 async def change_order_status(
     body: StatusChangeIn,
-    order_id: int = Path(ge=1),
+    order_id: int = Path(ge=1, le=MAX_ID),
     admin: CurrentUser = Depends(require_admin),
     service: AdminOrderStatusService = Depends(get_status_service),
 ) -> AdminOrderOut:

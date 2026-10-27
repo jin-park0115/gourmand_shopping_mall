@@ -68,7 +68,8 @@ export async function fetchProducts(query: ProductQuery & { ids?: number[] } = {
 
 // 없는 상품(또는 숫자가 아닌 주소)이면 undefined → 화면에서 notFound()
 export async function fetchProduct(id: number): Promise<Product | undefined> {
-  if (!Number.isInteger(id) || id < 1) return undefined;
+  // 서버가 받는 번호 범위(1 ~ 2,147,483,647) 밖이면 묻지 않고 바로 '없는 상품'
+  if (!Number.isInteger(id) || id < 1 || id > 2_147_483_647) return undefined;
   try {
     return await api<Product>(`/products/${id}`);
   } catch (e) {

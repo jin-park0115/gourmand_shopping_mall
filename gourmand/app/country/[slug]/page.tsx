@@ -8,6 +8,7 @@ import CountryTabs from "@/components/CountryTabs";
 import ProductCard from "@/components/ProductCard";
 import CategoryFilter, { filterByCategory } from "@/components/CategoryFilter";
 import { ProductGridSkeleton } from "@/components/Skeletons";
+import { firstParams } from "@/lib/params";
 
 const countries: Record<string, { name: string; banner: string }> = {
   japan: { name: "일본", banner: "/images/banner-japan.png" },
@@ -25,7 +26,7 @@ type CountryPageProps = {
 // 주소를 읽고 나라 배너 + 탭 + 상품 목록을 표시하는 부분
 async function CountryContent({ params, searchParams }: CountryPageProps) {
   const { slug } = await params;
-  const { category } = await searchParams;
+  const { category } = firstParams(await searchParams, "category");
 
   const country = countries[slug];
 

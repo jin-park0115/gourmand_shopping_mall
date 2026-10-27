@@ -49,3 +49,9 @@ class PermissionDeniedError(AppError):
     """로그인은 했지만 권한이 없음 (예: 고객이 관리자 API 호출, 남의 리뷰 수정) → 403"""
 
     code = "FORBIDDEN"
+
+
+class TooManyRequestsError(AppError):
+    """짧은 시간에 너무 많이 시도함 (예: 로그인 연속 실패) → 429"""
+
+    code = "TOO_MANY_REQUESTS"

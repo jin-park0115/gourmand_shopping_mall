@@ -24,6 +24,7 @@ class CartService:
     async def add(self, member_id: int, product_id: int, quantity: int) -> Cart:
         """같은 상품이 이미 있으면 수량을 합쳐요. 합친 수량도 재고 이하여야 해요."""
         product = await self._product(product_id)
+        await self.carts.lock_member(member_id)  # 같은 상품을 동시에 처음 담아도 합쳐지게 차례로
         current = await self.carts.get_quantity(member_id, product_id) or 0
         check_cart_quantity(product, current + quantity)
         await self.carts.save(member_id, product_id, current + quantity)

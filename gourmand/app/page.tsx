@@ -3,12 +3,13 @@ import { Suspense } from "react";
 import { fetchProducts, hasDiscount, isSoldOut } from "@/lib/products";
 import { Product } from "@/types/product";
 
+import CategoryMenu from "@/components/CategoryMenu";
 import CountryMenu from "@/components/CountryMenu";
 import ProductCard from "@/components/ProductCard";
 import MainBanner from "@/components/MainBanner";
 import HomeSection from "@/components/HomeSection";
 import ProductRow from "@/components/ProductRow";
-import { HomeRowsSkeleton } from "@/components/Skeletons";
+import { Bone, HomeRowsSkeleton, Loading } from "@/components/Skeletons";
 
 // 품절 상품은 항상 뒤로
 const soldOutLast = (a: Product, b: Product) =>
@@ -99,6 +100,23 @@ export default function Home() {
       {/* 2. 나라별 바로가기 아이콘 */}
       <section className="mt-6">
         <CountryMenu />
+      </section>
+
+      {/* 2-1. 종류별 바로가기 (카테고리 페이지로 가는 입구) */}
+      <section className="mt-8">
+        <Suspense
+          fallback={
+            <Loading label="카테고리를 불러오는 중이에요">
+              <div className="grid grid-cols-3 gap-2.5 md:gap-3.5 lg:grid-cols-6">
+                {Array.from({ length: 6 }, (_, i) => (
+                  <Bone key={i} className="h-[132px] rounded-2xl md:h-[220px]" />
+                ))}
+              </div>
+            </Loading>
+          }
+        >
+          <CategoryMenu />
+        </Suspense>
       </section>
 
       <Suspense fallback={<HomeRowsSkeleton />}>

@@ -28,7 +28,8 @@ export interface Order {
 }
 
 // saveAddress: 이 배송 정보를 내 계정에 저장해서 다음 주문서에서 불러와요 (브라우저가 아니라 서버에 저장)
-export function placeOrder(input: OrderInput, saveAddress: boolean) {
+// expectedTotalPrice: 화면에 보여 준 총액. 그사이 가격 · 장바구니가 바뀌어 서버 금액과 다르면 409 로 주문하지 않아요
+export function placeOrder(input: OrderInput, saveAddress: boolean, expectedTotalPrice: number) {
   return api<Order>("/orders", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -39,6 +40,7 @@ export function placeOrder(input: OrderInput, saveAddress: boolean) {
       address1: input.address1,
       address2: input.address2 || null,
       saveAddress,
+      expectedTotalPrice,
     }),
   });
 }

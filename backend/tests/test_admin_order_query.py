@@ -141,6 +141,20 @@ async def test_summary_follows_filters_but_today_does_not(db_session, shop) -> N
     assert [(p.name, p.units) for p in summary.top_products] == [("로투스 비스코프", 4), ("포키 초코", 1)]
 
 
+async def test_summary_with_q(db_session, shop) -> None:
+    # 상품명 검색(EXISTS)이 TOP 5 쿼리의 상품 · 주문상품 FROM 에 묶이지 않아야 해요 (예전엔 항상 500)
+    summary = await _service(db_session).summary(AdminOrderQuery(q="로투스"))
+    assert summary.total == 3
+    assert summary.status_counts[S.RECEIVED] == 1 and summary.status_counts[S.SHIPPING] == 1
+    assert summary.status_counts[S.DELIVERED] == 1
+    # 로투스가 든 주문의 모든 상품이 집계돼요 (o2 의 포키 포함)
+    assert [(p.name, p.units) for p in summary.top_products] == [("로투스 비스코프", 7), ("포키 초코", 3)]
+
+    by_recipient = await _service(db_session).summary(AdminOrderQuery(q="김구르"))
+    assert by_recipient.total == 2
+    assert [(p.name, p.units) for p in by_recipient.top_products] == [("로투스 비스코프", 2), ("포키 초코", 1)]
+
+
 async def test_detail_includes_history(db_session, shop) -> None:
     o4 = shop["orders"][3]
     history = OrderStatusHistoryRepository(db_session)

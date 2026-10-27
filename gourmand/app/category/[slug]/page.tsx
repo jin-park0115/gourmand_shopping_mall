@@ -10,6 +10,7 @@ import CategoryTabs from "@/components/CategoryTabs";
 import ProductCard from "@/components/ProductCard";
 import { SortLinks } from "@/components/ProductFilters";
 import { ProductGridSkeleton } from "@/components/Skeletons";
+import { firstParams } from "@/lib/params";
 
 type CategoryPageProps = {
   params: Promise<{ slug: string }>;
@@ -24,7 +25,7 @@ export async function generateMetadata({ params }: Pick<CategoryPageProps, "para
 
 async function CategoryContent({ params, searchParams }: CategoryPageProps) {
   const { slug } = await params;
-  const { country, sort } = await searchParams;
+  const { country, sort } = firstParams(await searchParams, "country", "sort");
 
   const category = getCategory(slug);
   if (!category) notFound();

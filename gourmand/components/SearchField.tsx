@@ -148,7 +148,12 @@ export default function SearchField({
       />
 
       {shown && (
-        <div className={`absolute top-full z-50 mt-2 ${panelClassName} overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-xl`}>
+        <div
+          // 누르는 순간 검색창 포커스가 빠지지 않게 해요. Safari 는 링크를 눌러도 링크에 포커스를 주지 않아서,
+          // 이게 없으면 blur 로 목록이 먼저 닫히고 클릭이 사라져요 (Chrome 은 링크로 포커스가 가서 괜찮았어요)
+          onMouseDown={(e) => e.preventDefault()}
+          className={`absolute top-full z-50 mt-2 ${panelClassName} overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-xl`}
+        >
           {options.length === 0 ? (
             <p className="px-4 py-4 text-sm text-gray-500">‘{q}’에 맞는 간식이 아직 없어요.</p>
           ) : (
