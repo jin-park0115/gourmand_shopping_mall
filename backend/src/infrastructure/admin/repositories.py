@@ -162,11 +162,12 @@ def _conditions(query: AdminOrderQuery, *, with_status: bool) -> list[ColumnElem
         like = f"%{_escape_like(query.q)}%"
         options: list[ColumnElement[bool]] = [
             OrderModel.recipient.ilike(like, escape="\\"),
+            # 바깥 주문에만 묶어요. 요약 TOP 5 처럼 바깥이 상품 · 주문상품을 조인하면 자동 묶기로 FROM 이 비어 500 이 났어요
             exists().where(
                 OrderItemModel.order_id == OrderModel.order_id,
                 ProductModel.product_id == OrderItemModel.product_id,
                 ProductModel.name.ilike(like, escape="\\"),
-            ),
+            ).correlate(OrderModel),
         ]
         # 연락처는 양쪽 하이픈을 빼고 비교해요: "01033334444" · "010-3333" 둘 다 "010-3333-4444" 를 찾고,
         # 하이픈만 있는 검색어("-")는 모든 연락처에 걸리지 않게 이 조건을 넣지 않아요

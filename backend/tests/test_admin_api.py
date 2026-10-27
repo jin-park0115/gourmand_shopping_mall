@@ -93,6 +93,14 @@ async def test_summary_is_not_taken_as_order_id(client) -> None:
     assert set(body["statusCounts"]) == {"접수", "상품준비중", "배송중", "배송완료", "배송지연", "주문취소"}
 
 
+async def test_summary_with_search_query(client) -> None:
+    # 대시보드에서 검색하면 요약도 같은 q 로 불려요. 상품명 · 받는 사람 · 없는 값 모두 200
+    for q, total in (("로투스", 2), ("박접수", 1), ("없는상품", 0)):
+        res = await client.get("/admin/orders/summary", params={"q": q})
+        assert res.status_code == 200, (q, res.text)
+        assert res.json()["total"] == total, q
+
+
 async def test_detail_and_not_found(client, ctx) -> None:
     body = (await client.get(f"/admin/orders/{ctx['received']}")).json()
     assert body["orderId"] == ctx["received"] and body["history"] == []
