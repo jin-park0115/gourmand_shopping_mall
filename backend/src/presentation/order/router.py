@@ -30,7 +30,11 @@ async def place_order(
     shipping = ShippingInfo.of(
         recipient=body.recipient, phone=body.phone, zipcode=body.zipcode, address1=body.address1, address2=body.address2
     )
-    return OrderOut.of(await service.place_order(user.member_id, shipping, save_address=body.save_address))
+    return OrderOut.of(
+        await service.place_order(
+            user.member_id, shipping, save_address=body.save_address, expected_total=body.expected_total_price
+        )
+    )
 
 
 @router.get("", response_model=Page[OrderOut])

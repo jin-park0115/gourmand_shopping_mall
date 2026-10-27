@@ -3,6 +3,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from domain.cart.cart import Cart, CartLine
+from infrastructure.auth.models import MemberModel
 from infrastructure.cart.models import CartItemModel
 from infrastructure.product.repositories import ProductRepository
 
@@ -41,6 +42,13 @@ class CartRepository:
         )
         return [(pid, qty) for pid, qty in rows.all()]
 
+    async def lock_member(self, member_id: int) -> None:
+        """담기용: 회원 행을 잠가 같은 회원의 담기를 차례로 처리해요.
+
+        처음 담는 상품은 잠글 장바구니 행이 아직 없어서, 동시에 두 번 담으면 둘 다 INSERT 하다 500 이 났어요 (SCRUM-69).
+        """
+        await self.session.execute(select(MemberModel.member_id).where(MemberModel.member_id == member_id).with_for_update())
+
     async def get_quantity(self, member_id: int, product_id: int) -> int | None:
         """담겨 있지 않으면 None. 같은 상품을 동시에 담아도 합산이 꼬이지 않게 행을 잠가요."""
         return await self.session.scalar(
@@ -63,6 +71,12 @@ class CartRepository:
             delete(CartItemModel).where(CartItemModel.member_id == member_id, CartItemModel.product_id == product_id)
         )
         return result.rowcount > 0
+
+    async def remove_products(self, member_id: int, product_ids: list[int]) -> None:
+        """주문용: 주문한 상품만 빼요. 주문하는 사이 다른 탭에서 새로 담은 상품은 남아요 (SCRUM-69)."""
+        await self.session.execute(
+            delete(CartItemModel).where(CartItemModel.member_id == member_id, CartItemModel.product_id.in_(product_ids))
+        )
 
     async def clear(self, member_id: int) -> None:
         await self.session.execute(delete(CartItemModel).where(CartItemModel.member_id == member_id))

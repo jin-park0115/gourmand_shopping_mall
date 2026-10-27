@@ -16,6 +16,7 @@ class OrderCreateIn(CamelModel):
     address1: str = Field(max_length=200)
     address2: str | None = Field(None, max_length=200)
     save_address: bool = False  # 이 배송 정보를 내 계정에 저장 (다음 주문서에서 불러오기)
+    expected_total_price: int | None = Field(None, ge=0)  # 주문서 화면이 보여 준 총액. 다르면 409
 
 
 class ShippingOut(CamelModel):
