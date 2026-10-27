@@ -1,4 +1,4 @@
-"""SCRUM-22 · 23: 상품 목록 · 상세 · 카테고리 API (테스트 DB 에 시드 60개, 테스트마다 rollback)."""
+"""SCRUM-22 · 23: 상품 목록 · 상세 · 카테고리 API (테스트 DB 에 시드 62개, 테스트마다 rollback)."""
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete
@@ -38,7 +38,7 @@ async def _ids(client, **params) -> list[int]:
 
 async def test_list_returns_page_in_camel_case(client) -> None:
     body = (await client.get("/products", params={"size": 7, "page": 2})).json()
-    assert (body["total"], body["page"], body["size"], body["pages"]) == (60, 2, 7, 9)
+    assert (body["total"], body["page"], body["size"], body["pages"]) == (62, 2, 7, 9)
     assert len(body["items"]) == 7
     konjac = (await client.get("/products/3")).json()
     assert konjac["discountPrice"] == 3900 and konjac["countrySlug"] == "japan" and konjac["categorySlug"] == "candy"
@@ -52,9 +52,9 @@ async def test_search_ignores_spaces(client, q) -> None:
 
 async def test_search_is_case_insensitive_and_literal(client) -> None:
     assert 41 in await _ids(client, q="oreo")  # OREO 오리지널
-    # % _ 는 와일드카드가 아니라 글자예요. 와일드카드였다면 60개가 다 나왔을 거예요
+    # % _ 는 와일드카드가 아니라 글자예요. 와일드카드였다면 62개가 다 나왔을 거예요
     assert 9 in await _ids(client, q="100%")  # 9번 설명에 "100%" 가 있어요
-    assert len(await _ids(client, q="%")) < 60 and len(await _ids(client, q="_")) < 60
+    assert len(await _ids(client, q="%")) < 62 and len(await _ids(client, q="_")) < 62
 
 
 @pytest.mark.parametrize(
@@ -82,8 +82,8 @@ async def test_search_works_with_filters_and_sort(client) -> None:
 
 async def test_filters(client) -> None:
     other = await _ids(client, country="other")
-    assert len(other) == 20 and 41 in other and 1 not in other
-    assert len(await _ids(client, country="japan")) == 10
+    assert len(other) == 21 and 41 in other and 61 in other and 1 not in other  # 61번은 뉴질랜드
+    assert len(await _ids(client, country="japan")) == 11
     assert len(await _ids(client, category="snack")) == 16
     assert await _ids(client, category="nope") == []
     assert sorted(await _ids(client, ids="9,1,5,999")) == [1, 5, 9]
@@ -94,7 +94,7 @@ async def test_filters(client) -> None:
 @pytest.mark.parametrize("sort", ["recommend", "review", "low", "high", "new"])
 async def test_sold_out_is_always_last(client, sort) -> None:
     ids = await _ids(client, sort=sort)
-    assert len(ids) == 60 and set(ids[-3:]) == SOLD_OUT
+    assert len(ids) == 62 and set(ids[-3:]) == SOLD_OUT
 
 
 async def test_price_sort_uses_sale_price(client) -> None:
@@ -154,5 +154,5 @@ async def test_detail_and_404(client) -> None:
 async def test_categories_with_counts(client) -> None:
     body = (await client.get("/categories")).json()
     assert [(c["slug"], c["productCount"]) for c in body] == [
-        ("snack", 16), ("cookie", 8), ("bakery", 11), ("chocolate", 7), ("candy", 12), ("savory", 6)
+        ("snack", 16), ("cookie", 9), ("bakery", 11), ("chocolate", 8), ("candy", 12), ("savory", 6)
     ]
