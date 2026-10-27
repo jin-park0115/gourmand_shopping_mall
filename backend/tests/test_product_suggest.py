@@ -1,4 +1,4 @@
-"""검색창 자동완성 GET /products/suggest (테스트 DB 에 시드 60개)."""
+"""검색창 자동완성 GET /products/suggest (테스트 DB 에 시드 62개)."""
 import pytest
 from httpx import ASGITransport, AsyncClient
 
