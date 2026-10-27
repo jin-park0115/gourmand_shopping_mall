@@ -24,7 +24,7 @@ function SearchForm({ defaultValue }: { defaultValue?: string }) {
         defaultValue={defaultValue}
         autoFocus={!defaultValue}
         aria-label="간식 검색"
-        placeholder="상품명, 나라, 브랜드로 찾아보세요"
+        placeholder="상품명, 나라, 브랜드, 초성(ㄱㅇㅈㄹ)으로 찾아보세요"
         className="h-12 min-w-0 flex-1 rounded-xl border border-brand-line bg-brand-soft px-4 text-base text-gray-900 outline-none transition placeholder:text-gray-500 focus:border-brand focus:bg-white focus:ring-2 focus:ring-brand-soft"
       />
       <button

@@ -21,7 +21,7 @@ def get_product_service(session: AsyncSession = Depends(get_session)) -> Product
 
 @router.get("/products", response_model=Page[ProductOut])
 async def list_products(
-    q: str | None = Query(None, max_length=50, description="검색어 (대소문자 · 띄어쓰기 무시)"),
+    q: str | None = Query(None, max_length=50, description="검색어 (대소문자 · 띄어쓰기 무시, 자모 · 초성 · 동의어: 초코 → 초콜릿, ㄱㅇㅈㄹ → 곤약젤리)"),
     country: CountrySlug | None = Query(None, description="other = 일본 · 대만 · 중국 · 베트남이 아닌 나라"),
     category: str | None = Query(None, max_length=30, description="카테고리 slug (GET /categories)"),
     ids: str | None = Query(None, pattern=r"^\d+(,\d+){0,99}$", description="쉼표로 구분한 상품 번호, 최대 100개 (픽 페이지용)"),
