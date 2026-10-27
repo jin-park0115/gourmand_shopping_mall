@@ -3,7 +3,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from application.admin.service import now_kst  # DB 시간 컬럼은 시간대 없이 KST (관리자 화면 · 오늘 매출과 같은 기준)
 from domain.exceptions import NotFoundError, PermissionDeniedError
-from domain.order.order import DEMO_PAYMENT_METHOD, MyOrderQuery, Order, ShippingInfo, take_stock_for_order
+from domain.order.order import (
+    DEMO_PAYMENT_METHOD,
+    MyOrderQuery,
+    Order,
+    ShippingInfo,
+    check_expected_total,
+    take_stock_for_order,
+)
 from domain.order.status import OrderStatus, cancel_by_customer, received
 from domain.product.product import Product
 from infrastructure.admin.repositories import AdminOrderCommandRepository, OrderStatusHistoryRepository
@@ -27,9 +34,12 @@ class OrderService:
         self.order_commands = AdminOrderCommandRepository(session)
         self._now = now
 
-    async def place_order(self, member_id: int, shipping: ShippingInfo, *, save_address: bool = False) -> Order:
+    async def place_order(
+        self, member_id: int, shipping: ShippingInfo, *, save_address: bool = False, expected_total: int | None = None
+    ) -> Order:
         """장바구니 → 주문. 재고 차감 · 주문 저장 · 결제완료 · 이력(접수) · 장바구니 비우기를 한 트랜잭션으로.
         save_address 면 이 배송 정보를 내 계정의 저장된 배송지로 (다음 주문서에서 불러와요).
+        expected_total: 주문서 화면이 보여 준 총액. 지금 금액과 다르면 409 (화면에 안 보인 금액으로 결제되지 않게).
 
         재고가 하나라도 모자라면 이미 줄인 재고까지 전부 되돌리고 409 예요.
         """
@@ -47,6 +57,7 @@ class OrderService:
 
             # 3. 도메인 규칙: 재고 차감 + 주문 당시 판매가로 주문 상품 만들기
             lines = take_stock_for_order(locked)
+            check_expected_total(lines, expected_total)
             for product, _ in locked:
                 await self.products.save_stock(product)
 
@@ -57,8 +68,8 @@ class OrderService:
             )
             await self.history.add(order_id, received(changed_at=now))
 
-            # 5. 장바구니 비우기 (+ 배송지 저장)
-            await self.carts.clear(member_id)
+            # 5. 주문한 상품만 장바구니에서 빼기 (그사이 다른 탭에서 담은 상품은 남겨요) (+ 배송지 저장)
+            await self.carts.remove_products(member_id, [product_id for product_id, _ in cart_lines])
             if save_address:
                 await self.addresses.save(member_id, shipping)
             await self.session.commit()

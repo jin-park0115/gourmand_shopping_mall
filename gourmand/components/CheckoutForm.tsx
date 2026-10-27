@@ -61,6 +61,12 @@ export default function CheckoutForm() {
   }, [memberId]);
   const saved = savedFor?.memberId === memberId ? savedFor.value : null;
 
+  // 주문서에 들어올 때마다 장바구니를 새로 받아요. 처음 불러온 뒤 가격이 바뀌었거나 다른 탭에서 담았으면
+  // 그대로 보여 주면 화면과 다른 금액으로 결제돼서요 (그래도 어긋나면 서버가 expectedTotalPrice 로 막아요)
+  useEffect(() => {
+    reload();
+  }, [reload]);
+
   // 주문을 마치고 다른 화면으로 가도 이 화면의 상태가 보존돼요 (Next cacheComponents).
   // 그대로 두면 뒤로 가기로 돌아왔을 때 '주문하는 중…' · 0원으로 멈춰서, 화면을 떠날 때 처음 상태로 되돌려요
   useEffect(
@@ -127,7 +133,7 @@ export default function CheckoutForm() {
     setSubmitting(true);
     try {
       // 서버가 장바구니로 주문을 만들고 장바구니를 비워요 (재고 차감 · 결제완료까지 한 번에, SCRUM-29)
-      const order = await placeOrder(form, remember);
+      const order = await placeOrder(form, remember, totalPrice);
       setSubmitted(true); // 비워진 장바구니로 "비어 있어요" 화면이 깜빡이지 않게
       reload(); // 헤더 장바구니 숫자도 0 으로
       // replace: 주문 완료에서 뒤로 가기를 누르면 끝난 주문서가 아니라 그 전 화면(장바구니)으로

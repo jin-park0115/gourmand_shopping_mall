@@ -96,6 +96,18 @@ def take_stock_for_order(locked: list[tuple[Product, int]]) -> list[OrderLine]:
     return lines
 
 
+PRICE_CHANGED_MESSAGE = "주문서를 연 뒤 장바구니나 가격이 바뀌었어요. 바뀐 금액을 확인하고 다시 주문해 주세요."
+
+
+def check_expected_total(lines: list[OrderLine], expected_total: int | None) -> None:
+    """주문서 화면이 보여 준 총액과 지금 서버 금액이 다르면 주문하지 않아요 (409, 호출한 쪽이 전체 롤백).
+
+    expected_total 이 없으면(예전 화면 · 직접 호출) 검사하지 않아요.
+    """
+    if expected_total is not None and sum(line.subtotal for line in lines) != expected_total:
+        raise BusinessRuleError(PRICE_CHANGED_MESSAGE)
+
+
 MAX_PAGE_SIZE = 50
 
 

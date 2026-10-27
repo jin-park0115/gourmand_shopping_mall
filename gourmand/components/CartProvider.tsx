@@ -68,6 +68,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [loaded, setLoaded] = useState<{ memberId: number; cart: CartResponse; failed?: boolean } | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const memberId = member?.id ?? null;
+  const reload = useCallback(() => setReloadKey((k) => k + 1), []); // 다시 받기 (주문서에 들어올 때 · 실패한 뒤)
   const cart = memberId !== null && loaded?.memberId === memberId ? loaded.cart : EMPTY;
   // 로그아웃 상태면 확인만 끝나면 되고, 로그인 상태면 그 회원 장바구니를 받아 와야 끝나요
   const hydrated = ready && (memberId === null || loaded?.memberId === memberId);
@@ -128,7 +129,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         items: cart.items,
         hydrated,
         loadFailed: memberId !== null && loaded?.memberId === memberId && !!loaded.failed,
-        reload: () => setReloadKey((k) => k + 1),
+        reload,
         orderable: cart.items.every(isOrderable),
         totalCount: cart.totalCount,
         totalPrice: cart.totalPrice,
