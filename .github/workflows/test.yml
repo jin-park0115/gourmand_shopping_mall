@@ -1,0 +1,117 @@
+# PR · develop/main 에 올라오면 테스트를 자동으로 돌려요
+# backend: pytest (Postgres) · frontend: lint · tsc · Vitest · e2e: 백엔드 + 빌드한 프론트 + Playwright
+name: test
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+  workflow_dispatch:
+
+concurrency: # 같은 브랜치에 새로 올리면 이전 실행은 취소
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/gourmand
+  JWT_SECRET_KEY: ci-only-jwt-secret-key-at-least-32-bytes-long
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: gourmand
+        ports: ["5432:5432"]
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - run: uv run pytest -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: gourmand
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: gourmand/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npx next typegen # LayoutProps 같은 라우트 타입은 Next 가 만들어 줘요 (빌드 전에는 없어요)
+      - run: npx tsc --noEmit
+      - run: npm test
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # 브라우저 · 시스템 패키지가 미리 깔린 공식 이미지 (설치하면 Ubuntu 서버가 느릴 때 25분 넘게 걸려요).
+    # 버전은 package-lock.json 의 @playwright/test 와 같아야 해요
+    container: mcr.microsoft.com/playwright:v1.64.1-noble
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: gourmand
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/gourmand # 컨테이너 안에서는 서비스 이름으로
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:8000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: gourmand/package-lock.json
+
+      - name: 백엔드 (마이그레이션 · 시드 · 서버)
+        working-directory: backend
+        run: |
+          uv sync --frozen --no-dev
+          uv run alembic upgrade head
+          uv run python scripts/seed.py
+          # uv run 으로 띄우면 uv 캐시 잠금을 계속 쥐고 있어서 job 마지막 캐시 정리가 멈춰요
+          nohup .venv/bin/uvicorn main:app --app-dir src --host 127.0.0.1 --port 8000 > ../backend.log 2>&1 &
+          for i in $(seq 30); do .venv/bin/python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')" 2>/dev/null && break; sleep 1; done
+          .venv/bin/python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/health').read())"
+
+      - name: 프론트 빌드
+        working-directory: gourmand
+        run: |
+          npm ci
+          npm run build
+
+      - name: Playwright
+        working-directory: gourmand
+        run: npm run e2e
+
+      - name: 리포트 · 백엔드 로그 올리기 (재시도로 통과한 테스트의 실패 기록도 들어 있어요)
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: |
+            gourmand/playwright-report/
+            gourmand/test-results/
+            backend.log
+          retention-days: 7
