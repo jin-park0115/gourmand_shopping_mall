@@ -62,11 +62,12 @@ export default defineConfig({
   ],
 
   /* Run your local dev server before starting the tests */
-  /* 프론트가 안 켜져 있으면 켜고, 켜져 있으면 그대로 써요 (백엔드는 따로 켜 두세요) */
+  /* 프론트가 안 켜져 있으면 켜고, 켜져 있으면 그대로 써요 (백엔드는 따로 켜 두세요).
+     CI 는 미리 빌드한 결과(npm run build)를 띄워요 */
   webServer: {
-    command: 'npm run dev',
+    command: process.env.CI ? 'npm run start' : 'npm run dev',
     url: 'http://localhost:3000',
-    reuseExistingServer: true,
+    reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },
 });
