@@ -7,6 +7,7 @@ import { fetchProducts } from "@/lib/products";
 import CountryTabs from "@/components/CountryTabs";
 import ProductCard from "@/components/ProductCard";
 import CategoryFilter, { filterByCategory } from "@/components/CategoryFilter";
+import { ProductGridSkeleton } from "@/components/Skeletons";
 
 const countries: Record<string, { name: string; banner: string }> = {
   japan: { name: "일본", banner: "/images/banner-japan.png" },
@@ -91,9 +92,7 @@ export default function CountryPage({ params, searchParams }: CountryPageProps) 
   return (
     <main className="mx-auto max-w-6xl px-4 py-6 md:py-8">
       <Suspense
-        fallback={
-          <p className="text-sm text-gray-500">상품을 불러오는 중이에요…</p>
-        }
+        fallback={<ProductGridSkeleton />}
       >
         <CountryContent params={params} searchParams={searchParams} />
       </Suspense>

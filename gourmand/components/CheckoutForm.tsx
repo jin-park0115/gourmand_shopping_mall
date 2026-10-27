@@ -7,6 +7,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { cartErrorMessage, useCart } from "@/components/CartProvider";
 import { type OrderInput } from "@/lib/orderStorage";
 import { fetchSavedAddress, placeOrder, shippingErrorField } from "@/lib/orders";
+import { ListSkeleton } from "@/components/Skeletons";
 
 type Errors = Partial<Record<keyof OrderInput, string>>;
 
@@ -71,7 +72,7 @@ export default function CheckoutForm() {
   );
 
   if (!hydrated) {
-    return <p className="py-20 text-center text-gray-500">불러오는 중...</p>;
+    return <ListSkeleton rows={3} label="주문서를 불러오는 중이에요" className="py-6" />;
   }
 
   // 주문 완료 직후 clearCart로 장바구니가 비어도 빈 화면 안내가 깜빡이지 않게 처리

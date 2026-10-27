@@ -40,3 +40,28 @@ body {
 .banner-progress {
   animation: banner-progress 5s linear forwards;
 }
+
+/* 로딩 스켈레톤: 회색 뼈대 위로 밝은 띠가 지나가요 (components/Skeletons.tsx) */
+@keyframes shimmer {
+  to { transform: translateX(100%); }
+}
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: #efe9e4;
+}
+
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.65), transparent);
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+/* '동작 줄이기'를 켠 사용자는 띠 없이 뼈대만 */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after { animation: none; }
+}

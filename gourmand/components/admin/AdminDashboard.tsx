@@ -18,6 +18,7 @@ import {
   type StatusChange,
 } from "@/lib/adminOrders";
 import { ORDER_STATUSES } from "@/lib/orderStorage";
+import { ListSkeleton } from "@/components/Skeletons";
 
 const PAGE_SIZE = 20;
 
@@ -199,7 +200,7 @@ function Dashboard({ member, onLogout }: { member: Member; onLogout: () => Promi
   }
 
   if (!list || !summary || !loadedAt) {
-    return loadError ? <Notice error>{loadError}</Notice> : <Notice>주문을 불러오는 중이에요…</Notice>;
+    return loadError ? <Notice error>{loadError}</Notice> : <ListSkeleton rows={6} thumb label="주문을 불러오는 중이에요" className="px-5 py-10" />;
   }
 
   const counts = summary.statusCounts;
@@ -432,8 +433,8 @@ function Dashboard({ member, onLogout }: { member: Member; onLogout: () => Promi
             (detail?.orderId === selectedId ? (
               <OrderDetail key={detail.orderId} order={detail} onChange={change} />
             ) : (
-              <aside aria-label="주문 상세" className="min-w-0 flex-[1_1_340px] rounded-2xl border border-[#EADFD6] bg-white px-5 py-16 text-center text-[#6E5B50]">
-                주문 상세를 불러오는 중이에요…
+              <aside aria-label="주문 상세" className="min-w-0 flex-[1_1_340px] rounded-2xl border border-[#EADFD6] bg-white p-5">
+                <ListSkeleton rows={3} label="주문 상세를 불러오는 중이에요" />
               </aside>
             ))}
         </div>

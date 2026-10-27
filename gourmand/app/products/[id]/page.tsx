@@ -18,6 +18,7 @@ import ProductCard from "@/components/ProductCard";
 import ProductPurchase from "@/components/ProductPurchase";
 import ProductReviews from "@/components/ProductReviews";
 import ProductRow from "@/components/ProductRow";
+import { ProductDetailSkeleton } from "@/components/Skeletons";
 
 type DetailPageProps = {
   params: Promise<{ id: string }>;
@@ -221,7 +222,7 @@ export default function ProductDetailPage({ params }: DetailPageProps) {
   return (
     <main className="mx-auto max-w-6xl px-4 py-6 md:py-8">
       <Suspense
-        fallback={<p className="text-sm text-gray-500">상품을 불러오는 중이에요…</p>}
+        fallback={<ProductDetailSkeleton />}
       >
         <ProductDetail params={params} />
       </Suspense>

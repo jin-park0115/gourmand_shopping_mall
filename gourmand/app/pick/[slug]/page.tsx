@@ -7,6 +7,7 @@ import { picks } from "@/data/picks";
 import CountryMenu from "@/components/CountryMenu";
 import ProductCard from "@/components/ProductCard";
 import CategoryFilter, { filterByCategory } from "@/components/CategoryFilter";
+import { ProductGridSkeleton } from "@/components/Skeletons";
 
 // params를 읽는 부분만 따로 분리 (Suspense 안에서 실행됨)
 async function PickProducts({
@@ -75,7 +76,7 @@ export default function PickPage({
 
       {/* pick 상품 (params를 읽는 부분만 Suspense) */}
       <section className="mt-10">
-        <Suspense fallback={<p className="text-gray-500">불러오는 중...</p>}>
+        <Suspense fallback={<ProductGridSkeleton />}>
           <PickProducts params={params} searchParams={searchParams} />
         </Suspense>
       </section>
