@@ -1,7 +1,7 @@
 # ERD (SCRUM-9)
 
-> 기준: `develop` 의 `infrastructure/*/models.py` (SCRUM-8 ORM 모델 반영)
-> **현재 모델 그대로** + **C(관리자 주문 운영)가 추가를 제안하는 부분**을 구분해서 적었어요. 제안 부분은 B·A와 합의 후 반영합니다.
+> 기준: `develop` 의 `infrastructure/*/models.py` 와 `backend/migrations/versions` (2026-10-28)
+> 테이블 12개. 처음 초안에서 C가 제안한 `orders` 배송 컬럼 · `order_status_history` · 인덱스는 모두 반영됐어요.
 
 ## 다이어그램
 
@@ -10,6 +10,7 @@ erDiagram
     country  ||--o{ product : "원산 국가"
     category ||--o{ product : "분류"
     product  ||--o{ review : "리뷰"
+    member   ||--o{ review : "작성"
     member   ||--o{ address : "배송지"
     member   ||--o{ cart_item : "장바구니"
     product  ||--o{ cart_item : "담김"
@@ -19,33 +20,47 @@ erDiagram
     orders   ||--|{ order_item : "주문 상품"
     product  ||--o{ order_item : "참조"
     orders   ||--o| payment : "결제"
-    orders   ||--o{ order_status_history : "상태 이력 (C 제안)"
-    member   |o--o{ order_status_history : "변경한 사람 (C 제안)"
+    orders   ||--o{ order_status_history : "상태 이력"
+    member   |o--o{ order_status_history : "변경한 사람"
 
     country {
         int country_id PK
         varchar name UK
+        varchar slug UK "URL용 (japan 등), nullable"
     }
     category {
         int category_id PK
         varchar name UK
+        varchar slug UK "URL용 (chocolate 등)"
     }
     product {
         int product_id PK
         int country_id FK
         int category_id FK
         varchar name
+        varchar manufacturer
+        text description
         int price
         int discount_price "nullable"
+        varchar image_url
+        bool is_new
         int stock "주문 시 차감, 취소 시 복구"
+        int delivery_days
+        numeric volume
+        varchar unit
+        int item_count
+        varchar origin
+        varchar food_type
+        varchar storage_method
     }
     review {
         int review_id PK
         int product_id FK
-        varchar author_name
-        int rating "1~5"
+        int member_id FK "작성자"
+        int rating "1~5 (CHECK)"
         text content
         timestamp created_at
+        timestamp updated_at "nullable"
     }
     member {
         int member_id PK
@@ -60,13 +75,16 @@ erDiagram
         int address_id PK
         int member_id FK
         varchar recipient
+        varchar phone
         varchar zipcode
+        varchar address1
+        varchar address2 "nullable"
         bool is_default
     }
     cart_item {
         int member_id PK, FK
         int product_id PK, FK
-        int quantity "1 이상"
+        int quantity "1 이상 (CHECK)"
         timestamp added_at
     }
     wishlist {
@@ -78,65 +96,65 @@ erDiagram
         int order_id PK
         int member_id FK
         varchar status "기본 접수"
-        int total_price "0 이상"
+        int total_price "0 이상 (CHECK)"
         varchar recipient
         varchar phone
         varchar zipcode
         varchar address1
         varchar address2 "nullable"
         timestamp ordered_at
-        varchar courier "C 제안: 배송중부터 필수"
-        varchar tracking_no "C 제안: 배송중부터 필수"
-        text admin_note "C 제안: 지연 사유 등"
-        timestamp updated_at "C 제안"
+        varchar courier "배송중부터 필수, nullable"
+        varchar tracking_no "배송중부터 필수, nullable"
+        varchar admin_note "지연 사유 등, nullable"
+        timestamp updated_at
     }
     order_item {
         int order_item_id PK
         int order_id FK
         int product_id FK
-        int quantity "1 이상"
-        int unit_price "주문 당시 가격"
+        int quantity "1 이상 (CHECK)"
+        int unit_price "주문 당시 가격, 0 이상 (CHECK)"
     }
     payment {
         int payment_id PK
         int order_id FK, UK
         varchar method
         int amount
-        varchar status
+        varchar status "결제완료 | 결제취소"
         timestamp paid_at "nullable"
     }
     order_status_history {
         int history_id PK
         int order_id FK
-        varchar from_status "첫 접수는 null"
-        varchar to_status
+        varchar from_status "첫 접수는 null (CHECK)"
+        varchar to_status "CHECK"
         int changed_by FK "member, 시스템이면 null"
-        text note
+        varchar note "nullable"
         timestamp changed_at
+    }
+    token_blacklist {
+        varchar jti PK "로그아웃한 토큰 ID"
+        timestamp expires_at "지나면 정리"
     }
 ```
 
-## C가 제안하는 변경 (합의 필요)
+`token_blacklist` 는 다른 테이블과 FK 없이 따로 있어요 (로그아웃 시 토큰 ID 기록, 인증할 때 확인).
 
-| 대상 | 변경 | 이유 | 관련 티켓 |
-| --- | --- | --- | --- |
-| `orders` | `courier`, `tracking_no` (nullable `String`) 추가 | 배송중으로 바꿀 때 택배사 · 운송장 필수 (관리자 화면에 이미 입력칸 있음) | SCRUM-35 |
-| `orders` | `admin_note` (nullable `Text`) 추가 | 배송지연 사유 메모 (관리자 화면 `adminNote`) | SCRUM-35 |
-| `orders` | `updated_at` 추가 | 마지막 상태 변경 시각 | SCRUM-35 |
-| `orders` | `status` 에 체크 제약 `IN ('접수','상품준비중','배송중','배송완료','배송지연','주문취소')` | 잘못된 값 저장 방지. 값은 `domain/order/status.py` · 프론트와 동일 | SCRUM-32 |
-| `order_status_history` | 신규 테이블 | 상태가 바뀔 때마다 한 줄 기록 (관리자 화면 이력 표시, 고객 취소도 기록) | SCRUM-33 |
-| 인덱스 | `orders (status, ordered_at)` | 관리자 목록 상태 · 기간 필터 | SCRUM-34 |
+## 제약 · 인덱스
 
-`order_status_history` 는 C가 `infrastructure/admin/models.py` 에 만들어서 B의 `order/models.py` 파일과 겹치지 않게 할게요.
-`orders` 컬럼 추가는 B 파일이라 **B가 추가하거나, C가 PR로 올리고 B가 리뷰**하는 방식 중 정해야 해요.
+| 대상 | 내용 |
+| --- | --- |
+| `order_status_history` | `from_status` · `to_status` 체크 제약 `IN ('접수','상품준비중','배송중','배송완료','배송지연','주문취소')`. 값은 `domain/order/status.py` · 프론트와 같아요 |
+| `orders.status` | DB 체크 제약은 없고, 도메인(`ADMIN_TRANSITIONS`)에서 허용된 전이만 막아요 |
+| 인덱스 | `orders (status, ordered_at)` 관리자 목록 필터 · `order_status_history (order_id, changed_at)` · `orders.member_id` · `order_item.order_id` · `order_item.product_id` · `address.member_id` · `token_blacklist.expires_at` |
+
+## 상태 · 취소 규칙
+
+- 관리자 상태 변경: 접수 → 상품준비중 → 배송중 → 배송완료 (배송중 ↔ 배송지연). 배송지연 · 주문취소는 사유 필수
+- 취소 가능: `접수` · `상품준비중` 에서만 (관리자 · 고객 같음)
+- 취소하면 `payment.status` 를 `결제취소` 로 바꾸고 `product.stock` 을 복구해요
 
 ## 트랜잭션 규칙
 
-- **주문 생성 (B)**: `orders` + `order_item` 저장, `product.stock` 차감, `cart_item` 비우기, 첫 이력(`null → 접수`)을 한 트랜잭션으로
-- **관리자 상태 변경 · 취소 (C)**: 상태 변경 + 이력 기록 (+ 취소면 `product.stock` 복구)을 한 트랜잭션으로. 같은 주문을 동시에 바꾸지 않게 `SELECT ... FOR UPDATE` 로 주문 행을 잠가요
-
-## 합의할 것
-
-- [ ] 위 `orders` 컬럼 추가를 누가 반영할지
-- [ ] 관리자 취소 가능 범위 — 제안: `접수`, `상품준비중` 에서만
-- [ ] 취소 시 `payment.status` 를 함께 바꿀지 (예: `취소`)
+- **주문 생성 (B)**: `orders` + `order_item` + `payment` 저장, `product.stock` 차감, 주문한 상품만 `cart_item` 에서 빼기 (+ 배송지 저장 선택), 첫 이력(`null → 접수`)을 한 트랜잭션으로
+- **관리자 상태 변경 · 취소 (C)**: 상태 변경 + 이력 기록 (+ 취소면 `payment` 결제취소 · `product.stock` 복구)을 한 트랜잭션으로. 같은 주문을 동시에 바꾸지 않게 `SELECT ... FOR UPDATE` 로 주문 행을 잠가요
