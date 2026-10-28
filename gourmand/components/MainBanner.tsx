@@ -8,31 +8,31 @@ const banners = [
   {
     id: 1,
     country: "희주 PICK",
-    image: "/images/common/banner_heeju.png",
+    image: "/images/common/banner_heeju.webp",
     href: "/pick/heeju",
   },
   {
     id: 2,
     country: "예주 PICK",
-    image: "/images/common/banner_yeju.png",
+    image: "/images/common/banner_yeju.webp",
     href: "/pick/yeju",
   },
   {
     id: 3,
     country: "종복 PICK",
-    image: "/images/common/banner_jongbok.png",
+    image: "/images/common/banner_jongbok.webp",
     href: "/pick/jongbok",
   },
   {
     id: 4,
     country: "강 PICK",
-    image: "/images/common/banner_gang.png",
+    image: "/images/common/banner_gang.webp",
     href: "/pick/gang",
   },
   {
     id: 5,
     country: "지아 PICK",
-    image: "/images/common/banner_jina.png",
+    image: "/images/common/banner_jina.webp",
     href: "/pick/jia",
   },
 ];

@@ -145,7 +145,7 @@ export default function Header() {
         {/* 로고 */}
         <Link href="/" className="shrink-0">
           <img
-            src="/images/common/logo.png"
+            src="/images/common/logo.webp"
             alt="구르망 GOURMAND"
             className="h-20 w-auto"
           />
@@ -211,7 +211,7 @@ export default function Header() {
       <div className="relative flex h-14 items-center justify-center px-3 lg:hidden">
         <Link href="/">
           <img
-            src="/images/common/logo.png"
+            src="/images/common/logo.webp"
             alt="구르망 GOURMAND"
             className="h-10 w-auto"
           />
