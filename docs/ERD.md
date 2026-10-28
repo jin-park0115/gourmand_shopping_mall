@@ -1,14 +1,14 @@
 # ERD (SCRUM-9)
 
-> 기준: `develop` 의 `backend/src/infrastructure/*/models.py` 와 Alembic 마이그레이션 head `a4f3fa9ce8d9`.
-> 처음 ERD(10/23)에서 "C 제안"으로 적었던 주문 배송 컬럼과 상태 이력 테이블은 윤강 님과 합의해서 반영됐어요. 상태 값 CHECK 는 `orders.status` 가 아니라 이력 테이블(`order_status_history`)에 걸었고, `orders.status` 는 domain 계층이 검사해요.
+> 기준: `develop` 의 `backend/src/infrastructure/*/models.py` 와 Alembic 마이그레이션 head `a4f3fa9ce8d9` (2026-10-28).
+> 처음 ERD(10/23)에서 "C 제안"으로 적었던 주문 배송 컬럼 · 상태 이력 테이블 · `orders (status, ordered_at)` 인덱스는 윤강 님과 합의해서 반영됐어요. 상태 값 CHECK 는 `orders.status` 가 아니라 이력 테이블(`order_status_history`)에 걸었고, `orders.status` 는 domain 계층이 검사해요.
 
 ## 한눈에
 
 - **테이블 13개**를 여섯 묶음으로 나눠요. 인수 당시에는 `country` · `category` · `product` · `review` 4개뿐이었어요.
 - 모든 테이블은 PostgreSQL 기본 스키마에 있고, 스키마 변경은 **Alembic 마이그레이션 6개**로만 해요 (아래 [마이그레이션 이력](#마이그레이션-이력)).
 - 금액은 전부 원 단위 정수(`INTEGER`)예요. 시각은 시간대 없는 `TIMESTAMP` 이고, 로그아웃 토큰 만료 시각만 `TIMESTAMPTZ` 예요.
-- 주문 · 결제 · 상태 이력 시각(`ordered_at` · `updated_at` · `paid_at` · `changed_at`)은 앱이 한국 시간(KST)으로 넣고, 회원 · 리뷰 · 장바구니의 생성 시각은 DB `now()` 기본값이에요. DB 서버 시간대가 UTC 이면 두 무리가 9시간 차이 나요.
+- 주문 · 결제 · 상태 이력 시각(`ordered_at` · `orders.updated_at` · `paid_at` · `changed_at`)은 앱이 한국 시간(KST)으로 넣고, 회원 · 리뷰 · 장바구니의 생성 시각과 리뷰 수정 시각(`review.updated_at`)은 DB `now()` 예요. DB 서버 시간대가 UTC 이면 두 무리가 9시간 차이 나요.
 
 | 묶음 | 테이블 | 담당 | 하는 일 |
 | --- | --- | --- | --- |
@@ -119,7 +119,7 @@ erDiagram
     }
 ```
 
-읽는 법: `||--o{` 는 "하나 ↔ 0개 이상", `||--|{` 는 "하나 ↔ 1개 이상"(주문에는 상품이 꼭 하나 이상), `||--o|` 는 "하나 ↔ 0개 또는 1개"(주문당 결제 1건), `|o--o{` 는 "0개 또는 1개 ↔ 0개 이상"(이력의 관리자는 비어 있을 수 있음)이에요. 그림에는 키와 핵심 열만 넣었고, 모든 열은 아래 [테이블 상세](#테이블-상세)에 있어요.
+읽는 법: `||--o{` 는 "하나 ↔ 0개 이상", `||--|{` 는 "하나 ↔ 1개 이상"(주문에는 상품이 꼭 하나 이상), `||--o|` 는 "하나 ↔ 0개 또는 1개"(주문당 결제 1건), `|o--o{` 는 "0개 또는 1개 ↔ 0개 이상"(이력의 관리자는 비어 있을 수 있음)이에요. `token_blacklist` 는 다른 테이블과 FK 없이 따로 있어서 선이 없어요. 그림에는 키와 핵심 열만 넣었고, 모든 열은 아래 [테이블 상세](#테이블-상세)에 있어요.
 
 ## 테이블 상세
 
@@ -173,7 +173,7 @@ erDiagram
 | `rating` | integer | NN, CHECK 1~5 | 별점 |
 | `content` | text | NN | 본문 10~1,000자 (길이 검사는 domain) |
 | `created_at` | timestamp | NN, 기본 now() | |
-| `updated_at` | timestamp | | 수정한 적 없으면 NULL |
+| `updated_at` | timestamp | | 수정하면 DB now(), 수정한 적 없으면 NULL |
 
 제약: `uq_review_product_member (product_id, member_id)`. `product_id` 가 앞에 있어서 상품별 리뷰 목록 조회 인덱스도 겸해요.
 
@@ -202,7 +202,7 @@ erDiagram
 | `address1` · `address2` | varchar(200) | NN (`address2` 제외) | 기본 주소 · 상세 주소 |
 | `is_default` | boolean | NN, 기본 false | 기본 배송지 |
 
-**`token_blacklist`** 로그아웃한 access token 의 `jti`. 인증할 때 여기 있으면 401 이에요. 만료 시각이 지난 줄은 다음 로그아웃 때 지워서 테이블이 계속 커지지 않아요 (SCRUM-19).
+**`token_blacklist`** 로그아웃한 access token 의 `jti`. 회원과 FK 로 잇지 않고 토큰 번호만 기록해요. 인증할 때 여기 있으면 401 이에요. 만료 시각이 지난 줄은 다음 로그아웃 때 지워서 테이블이 계속 커지지 않아요 (SCRUM-19).
 
 | 열 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
@@ -241,8 +241,8 @@ erDiagram
 | `recipient` · `phone` | varchar(50) · varchar(20) | NN | |
 | `zipcode` · `address1` · `address2` | varchar(10) · varchar(200) · varchar(200) | NN (`address2` 제외) | |
 | `ordered_at` | timestamp | NN, 기본 now() | |
-| `courier` | varchar(20) | | 택배사 (CJ대한통운 · 우체국택배 · 한진택배 · 롯데택배). 배송중으로 바꿀 때 필수 |
-| `tracking_no` | varchar(30) | | 운송장. 숫자 · 하이픈 8~20자. 배송중으로 바꿀 때 필수 |
+| `courier` | varchar(20) | | 택배사 (CJ대한통운 · 우체국택배 · 한진택배 · 롯데택배). 첫 출고(상품준비중 → 배송중) 때 필수, 배송지연 → 배송중은 이미 적힌 값을 그대로 써요 |
+| `tracking_no` | varchar(30) | | 운송장. 숫자 · 하이픈 8~20자. 필수 조건은 `courier` 와 같아요 |
 | `admin_note` | varchar(300) | | 관리자가 마지막으로 적은 사유 · 메모 (배송지연 · 주문취소 때 필수). 고객 취소는 쓰지 않아요 |
 | `updated_at` | timestamp | NN, 기본 now() | 마지막 변경 시각 (바뀔 때 앱이 갱신) |
 
@@ -296,6 +296,7 @@ erDiagram
 | CHECK | `ck_orders_total_price` | `orders.total_price >= 0` | 음수 금액 |
 | CHECK | `ck_order_item_quantity` · `ck_order_item_unit_price` | `order_item` 수량 ≥ 1, 단가 ≥ 0 | |
 | CHECK | `ck_order_status_history_to_status` · `ck_order_status_history_from_status` | 이력의 6개 상태 값 | 없는 상태 기록 |
+| (DB 없음) | — | `orders.status` | DB CHECK 없이 domain 이 검사: 관리자 전이는 `ADMIN_TRANSITIONS`, 고객 취소는 `CUSTOMER_CANCELLABLE` (`backend/src/domain/order/status.py`) |
 | UNIQUE | `uq_review_product_member` | `review (product_id, member_id)` | 1인 2리뷰 (동시 작성 포함) |
 | UNIQUE | — | `member.email`, `payment.order_id`, `country.name/slug`, `category.name/slug` | 중복 가입, 주문당 결제 2건 |
 | INDEX | `ix_orders_status_ordered_at` | `orders (status, ordered_at)` | 관리자 목록 · 요약 |
@@ -364,7 +365,7 @@ stateDiagram-v2
 | 3 | `931e63404b05` | SCRUM-21 | `country.slug` · `category.slug` 추가 (기존 행 채운 뒤 UNIQUE) |
 | 4 | `d7e2b9a4c1f6` | SCRUM-35 | `orders` 에 `courier` · `tracking_no` · `admin_note` · `updated_at`, 인덱스 `(status, ordered_at)` |
 | 5 | `e4b8c2d1a9f3` | SCRUM-19 | `token_blacklist` 추가 (로그아웃) |
-| 6 | `a4f3fa9ce8d9` | SCRUM-25 | `review.author_name` 대신 `member_id` (FK, CASCADE) · `updated_at`, UNIQUE `(product_id, member_id)`. 기존 리뷰 행은 모두 지우고 시드로 다시 넣어요 |
+| 6 | `a4f3fa9ce8d9` | SCRUM-25 | `review.author_name` 대신 `member_id` (FK, CASCADE) · `updated_at`, UNIQUE `(product_id, member_id)`. 기존 리뷰 행은 모두 지워요 (시드 리뷰는 `uv run python scripts/seed.py` 를 돌리면 다시 들어가요) |
 
 ## 인수 전과 비교
 
@@ -374,4 +375,4 @@ stateDiagram-v2
 | 스키마 관리 | 동기 SQLAlchemy + 수동 비교 스크립트 | 비동기 SQLAlchemy 모델 + Alembic 6개 |
 | 리뷰 | 작성자 이름 문자열 | 회원 FK + 1인 1리뷰 UNIQUE |
 | 장바구니 · 주문 | 브라우저 sessionStorage · localStorage | `cart_item` · `orders` · `order_item` · `payment` |
-| 관리자 | 코드에 넣은 예시 주문 14건 + 같은 브라우저의 주문(localStorage), 상태 변경은 화면 안에서만 | 상태 이력 테이블(상태 CHECK) · 배송 컬럼 · 서버 전이 규칙 |
+| 관리자 | 코드에 넣은 예시 주문 14건 + 같은 브라우저의 주문(localStorage). 실제 주문의 상태 변경은 그 브라우저 localStorage 에만 저장(마이페이지에 반영), 예시 주문은 화면에서만 | 상태 이력 테이블(상태 CHECK) · 배송 컬럼 · 서버 전이 규칙 |
