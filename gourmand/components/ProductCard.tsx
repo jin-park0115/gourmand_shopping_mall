@@ -27,6 +27,7 @@ export default function ProductCard({ p, showCountry = false }: { p: Product; sh
           <div className="relative aspect-square overflow-hidden rounded-xl border border-gray-200 bg-white">
             <img
               src={p.imageUrl}
+              loading="lazy"
               alt={p.name}
               className="h-full w-full object-contain transition duration-300 group-hover:scale-105"
             />

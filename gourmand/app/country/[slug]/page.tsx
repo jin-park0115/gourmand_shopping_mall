@@ -11,11 +11,11 @@ import { ProductGridSkeleton } from "@/components/Skeletons";
 import { firstParams } from "@/lib/params";
 
 const countries: Record<string, { name: string; banner: string }> = {
-  japan: { name: "일본", banner: "/images/banner-japan.png" },
-  taiwan: { name: "대만", banner: "/images/banner-taiwan.png" },
-  china: { name: "중국", banner: "/images/banner-china.png" },
-  vietnam: { name: "베트남", banner: "/images/banner-vietnam.png" },
-  other: { name: "그 외", banner: "/images/banner-global.png" },
+  japan: { name: "일본", banner: "/images/banner-japan.webp" },
+  taiwan: { name: "대만", banner: "/images/banner-taiwan.webp" },
+  china: { name: "중국", banner: "/images/banner-china.webp" },
+  vietnam: { name: "베트남", banner: "/images/banner-vietnam.webp" },
+  other: { name: "그 외", banner: "/images/banner-global.webp" },
 };
 
 type CountryPageProps = {

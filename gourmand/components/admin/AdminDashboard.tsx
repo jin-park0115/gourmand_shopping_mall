@@ -219,7 +219,7 @@ function Dashboard({ member, onLogout }: { member: Member; onLogout: () => Promi
       {/* ── 사이드바 ── */}
       <aside className="flex flex-[1_1_232px] flex-col gap-4 bg-[#3E1A08] px-4 py-4 text-[#F3E6DA] lg:gap-7 lg:py-6">
         <div className="flex items-center justify-center rounded-2xl bg-[#FBF3EA] px-3 py-2 lg:py-2.5">
-          <img src="/images/common/logo.png" alt="구르망 GOURMAND" className="h-10 w-auto lg:h-[52px]" />
+          <img src="/images/common/logo.webp" alt="구르망 GOURMAND" className="h-10 w-auto lg:h-[52px]" />
         </div>
         <p className="-mb-4 hidden px-3 text-[11px] font-bold tracking-[0.12em] text-[#C9A58C] lg:block">ADMIN</p>
         <nav aria-label="관리자 메뉴" className="flex flex-col gap-1">

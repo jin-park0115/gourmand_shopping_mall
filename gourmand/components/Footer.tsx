@@ -3,7 +3,7 @@ export default function Footer() {
     <footer data-shop-chrome className="border-t border-gray-200 bg-white">
       <div className="mx-auto flex max-w-6xl flex-col items-center gap-4 px-4 py-8 text-center md:flex-row md:gap-6 md:text-left">
         {/* 팀 로고 */}
-        <img src="/images/common/team_logo.png" alt="크런치클럽" className="h-12 w-auto md:h-14" />
+        <img src="/images/common/team_logo.webp" alt="크런치클럽" className="h-12 w-auto md:h-14" />
 
         {/* 안내 문구 */}
         <div className="text-sm text-gray-500">
