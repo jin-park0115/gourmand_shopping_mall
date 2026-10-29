@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
+import { useToast } from "@/components/Toast";
 import { ApiError, loginHref, type Page } from "@/lib/api";
 import { ORDER_STATUSES, type OrderInput } from "@/lib/orderStorage";
 import { CANCELLABLE_STATUSES, cancelOrder, fetchMyOrders, fetchSavedAddress, type Order } from "@/lib/orders";
@@ -41,7 +42,7 @@ export default function MyOrders() {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [cancelling, setCancelling] = useState<number | null>(null);
-  const [notice, setNotice] = useState<{ text: string; error: boolean } | null>(null);
+  const toast = useToast(); // 취소 결과는 토스트로 (목록이 길어도 보이게)
 
   // 저장된 배송 정보는 내 계정(서버)에 있어요. 누구의 것인지 같이 저장해서 회원이 바뀌면 쓰지 않아요
   const memberId = member?.id ?? null;
@@ -94,13 +95,12 @@ export default function MyOrders() {
   async function handleCancel(order: Order) {
     if (!confirm(`주문번호 ${order.orderId}을(를) 취소할까요? 결제가 취소되고 되돌릴 수 없어요.`)) return;
     setCancelling(order.orderId);
-    setNotice(null);
     try {
       await cancelOrder(order.orderId);
-      setNotice({ text: `주문번호 ${order.orderId}을(를) 취소했어요.`, error: false });
+      toast(`주문번호 ${order.orderId}을(를) 취소했어요.`);
     } catch (e) {
       // 예: 그사이 관리자가 출고해서 '배송중' 이면 서버가 취소할 수 없다고 알려 줘요
-      setNotice({ text: e instanceof ApiError ? e.message : "주문을 취소하지 못했어요.", error: true });
+      toast(e instanceof ApiError ? e.message : "주문을 취소하지 못했어요.", "error");
     } finally {
       setCancelling(null);
       setReloadKey((k) => k + 1); // 바뀐 상태를 다시 받아요 (상태 필터에서 빠질 수도 있어서 목록째)
@@ -191,15 +191,6 @@ export default function MyOrders() {
             </select>
           </div>
         </div>
-
-        {notice && (
-          <p
-            role={notice.error ? "alert" : "status"}
-            className={`mb-3 rounded-lg px-3 py-2 text-sm ${notice.error ? "bg-red-50 text-red-600" : "bg-brand-soft text-brand"}`}
-          >
-            {notice.text}
-          </p>
-        )}
 
         {!current ? (
           <ListSkeleton rows={3} thumb label="주문 내역을 불러오는 중이에요" />

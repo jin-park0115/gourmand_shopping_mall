@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 import { useAuth } from "@/components/AuthProvider";
+import { useToast } from "@/components/Toast";
 import { ApiError, getToken, loginHref, type Page } from "@/lib/api";
 import type { Member } from "@/lib/auth";
 import {
@@ -451,13 +452,15 @@ function OrderDetail({ order: o, onChange }: { order: AdminOrder; onChange: (bod
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
 
-  // 서버가 거절하면(409 · 422) 그 메시지를 그대로 보여 줘요
+  // 성공은 토스트로, 서버가 거절하면(409 · 422) 그 메시지를 패널 안에 그대로 보여 줘요
   async function run(body: StatusChange) {
     setBusy(true);
     setError(null);
     try {
       await onChange(body);
+      toast(`#${o.orderId} 주문을 '${body.status}'(으)로 바꿨어요.`);
       setTrackingNo("");
       setNote("");
     } catch (e) {
